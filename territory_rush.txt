@@ -1,0 +1,380 @@
+🎮 JÁTÉK KONCEPCIÓ — “TERRITORY RUSH” (munkanév)
+
+Webes stratégiai, szigetes, területfoglalós, csempés, bázisépítős és egységmenedzsment játék
+
+1️⃣ JÁTÉK ALAP KONCEPCIÓ
+
+A játék lényege:
+
+A pálya színes, kockákból épülő szigetekből áll.
+
+Minden játékos egy színű területet irányít.
+
+A területen épületeket lehet elhelyezni → ezek termelik az egységeket, nyersanyagokat vagy buffokat.
+
+A játékos egységei automatikusan mozognak és támadnak (idle/auto battle).
+
+A cél:
+
+növelni a területet (új kockákat foglalni),
+
+legyőzni más játékosok/AI szigeteit,
+
+fejleszteni az építményeket,
+
+stratégiai irányítás: hová menjen a sereg, mely épület mit fejlesszen, mit gyártsanak.
+
+A játék tempója gyors → 2–5 perces csaták ⚔️
+Közben sok apró egység mozog, lövöldöz, robban — mint a screenshotokon.
+
+2️⃣ JÁTÉkmenet struktúrája
+Fő ciklus
+
+Terület birtoklása → adott mennyiségű csempe.
+
+Épületek építése → farmok, barakkok, tornyok, bányák stb.
+
+Termelés indul → katonák, buff, resource.
+
+Katonák automatikusan támadják a szomszédos csempéket.
+
+Ha neutral vagy enemy tile → harc indul.
+
+Tile meghódítva → színedre festődik → új építési lehetőség.
+
+Ellenfél bázis elpusztítása = győzelem.
+
+3️⃣ MAP & TILE RENDSZER
+Tile paraméterek
+
+tile_id
+
+owner_player_id (null → neutral)
+
+height_level (vizuális változatosság, 1-3)
+
+build_slot_count (0–1–2)
+
+defense_bonus
+
+coordinates (x,y)
+
+Tile típusok
+Típus	Leírás
+Main Base	Játékos központja, ha elpusztul = lose
+Resource Tile	Bónusz nyersanyag
+Defense Tile	Torony jobban működik rajta
+Water Tile	Csak hajó/air unit tud rajta mozogni
+Event Tile	Random buffok, veszélyek
+4️⃣ ÉPÜLETRENDSZER
+1. Barakk (Barracks)
+
+Melee unit spawner
+
+Gyors, olcsó termelés
+
+3 fejlesztési szint
+
+2. Archery Range
+
+Range egység
+
+Messziről sebez
+
+Lassabb, de erős
+
+3. Heavy Factory
+
+Tank/robot egységek
+
+Nagyon lassú, de erős HP/dmg
+
+4. Mage Tower
+
+Területsebző varázslatot lövöldöz
+
+Kevés HP, nagy dmg burst
+
+5. Turret
+
+Védekező épület
+
+Nem mozdul
+
+Megállítja az ellenfelet
+
+6. Resource Mine
+
+Gold / metal + XP termelés
+
+7. Harbor / Dock
+
+Hajó egységek
+
+Vízre spawnol
+
+5️⃣ EGYSÉGTÍPUSOK
+1. Melee
+
+gyors, sokan vannak
+
+feladata: töltse a frontvonalat
+
+2. Ranged
+
+nagy távolság
+
+fragile
+
+3. Tank
+
+sok HP, lassú
+
+4. Mage
+
+területre sebez (AOE)
+
+5. Air unit
+
+mindenen átmegy (special)
+
+6. Ships
+
+csak vízen mozoghatnak
+→ a screenshotokon látszik, sok hajó megy egyik szigetről a másikra
+
+6️⃣ HARCRENDSZER
+Auto-battle rendszer
+
+Egységek automatikusan választanak célpontot:
+
+legközelebbi ellenség
+
+ha nincs → legközelebbi enemy tile
+
+Ha egy csempére belépnek:
+
+Ha ott enemy unit van → unit vs unit harc
+
+Ha nincs, de épület van → azt támadják
+
+Ha semmi → tile capture 3 sec alatt
+
+Tile Capture Logika
+if enemy_units == 0 and your_units > 0:
+    capture_progress += time * units_count
+
+Épület pusztulás
+
+épületnek van HP-ja
+
+ha leesik: tile semleges
+
+5 sec után átvehető
+
+7️⃣ RESOURCE & ECONOMY
+Fő nyersanyag:
+
+Gold (egységek gyártásához)
+
+Metal (épületek építése)
+
+Crystals (special ability, buff)
+
+Termelés
+
+Minden Resource Mine X / másodperc
+
+A játék pörgős → gyors termelés kell
+
+8️⃣ PROGRESSION & TECH TREE
+Épület szintek (1–5)
+
+spawn rate
+
+unit dmg/HP
+
+range
+
+defense
+
+Kutatások
+
+spawn speed +10%
+
+unit HP +5%
+
+tile capture speed +20%
+
+turret dmg +10%
+
+Player Level
+
+XP jön a harcokból
+
+új épületek nyílnak meg
+
+9️⃣ EVENTEK / RANDOM ESEMÉNYEK
+
+A pályán időnként:
+
+meteor csapódik be → random tile semleges lesz
+
+bónusz láda → crystals
+
+boss raid → minden játékost támad
+
+villámlás → 10 tile-en kárt okoz
+
+🔟 UI / UX TERV
+Minimális, mobilos UI
+
+Felső sáv:
+
+Gold / Metal / Crystal
+
+XP bar
+
+Jobb oldalon:
+
+Épületlista gombbal
+
+Alsó középen:
+
+Ability gombok (pl. tűzvihar, gyors spawn)
+
+Bal oldalt:
+
+Mini map (tile alapú)
+
+Tile kijelölés
+
+rákatt → mutatja:
+
+mi építhető
+
+mi van rajta
+
+fejlesztési opció
+
+1️⃣1️⃣ TECHNIKAI ARCHITEKTÚRA
+Frontend
+
+Vue 3 + TypeScript + Pinia
+
+Canvas/WebGL (pixi.js vagy Phaser) → gyors csempe és unit render
+
+Tailwind a UI-hoz
+
+Backend
+
+Node.js (Express vagy Fastify)
+
+Strapi v5 (account, shop, progression)
+
+Redis → állapot gyors tárolás
+
+PostgreSQL → hosszú távú adatok
+
+Game Engine szerver oldalon
+
+Tick loop: 100ms / tick
+
+Egységek pozíciója, harcok, tile capture szerveren fut
+
+Websocket kommunikáció
+
+Docker infrastruktúra
+
+frontend
+
+backend
+
+game-engine
+
+redis
+
+postgres
+
+nginx
+
+Minden külön konténer → könnyű skálázni.
+
+1️⃣2️⃣ ADATMODELL MINTA
+Players
+player_id
+username
+level
+xp
+resources: { gold, metal, crystals }
+
+Tiles
+tile_id
+owner
+x
+y
+building_id
+capture_progress
+
+Units
+unit_id
+type
+owner
+hp
+attack
+x, y
+target_id
+
+Buildings
+building_id
+type
+level
+tile_id
+hp
+spawn_rate
+
+1️⃣3️⃣ JÁTÉK LOOP
+
+Belép a játékos
+
+Látja saját szigetét (20×20 tiles)
+
+Épít barakkot
+
+Indul a spawn → katonák kifutnak
+
+Elfoglalják a szomszédos tiles-t
+
+Új területen új építkezés
+
+Találkozás enemy AI-val → harc
+
+Bázis elpusztítása → nyeremény, XP, loot
+
+1️⃣4️⃣ AI RENDSZER
+
+Egyszerű "territory expansion" logika:
+
+mindig a legközelebbi neutral tile → expand
+
+ha player közel van → védekezés és counterattack
+
+eventekre reagál: visszavonul, tömörül
+
+1️⃣5️⃣ RÖVID TESZTVERZIÓ (MVP)
+
+Mit kell elsőnek megépítened:
+
+Map system (tile grid)
+
+Tile ownership váltás
+
+Egységek mozgása tile-ről tile-ra
+
+Egységek automata harca
+
+Épület spawn rendszer
+
+Resource management
+
+Basic UI

@@ -1,0 +1,597 @@
+1. Rendszer-architektúra
+
+Komponensek:
+
+frontend – Vue 3 + Vite, PixiJS a pálya & egységek rajzolására
+
+api – REST (Express), auth, profil, progression, shop, statisztikák
+
+game-server – valódi játékmenet szimuláció (tick loop, unit mozgás, harc) + WebSocket
+
+redis – gyors game state / session cache
+
+postgres – perzisztens adatok (user, progress, map meta, economy)
+
+nginx – reverse proxy + statikus frontend kiszolgálás
+
+docker-compose – mindezt összefogja
+
+Kommunikáció:
+
+Frontend → API: REST (auth, profil, lobby, matchmaking, economy)
+
+Frontend ↔ Game-server: WebSocket (match join, state update, player input)
+
+Game-server ↔ Postgres/Redis: game state mentés, load
+
+2. Játékmenet rövid összefoglaló (referencia)
+
+Csempés map (grid)
+
+Minden játékos saját színű sziget(ek)
+
+Épületek: barakk, torony, mine, stb.
+
+Egységek automatikusan támadnak, mozognak
+
+Cél: ellenséges base lerombolása / pontgyűjtés
+
+2–5 perces meccsek (MVP-ben 1vAI, később 1v1 / 4 fős FFA)
+
+3. Adatmodell (Postgres – fő táblák)
+3.1. Felhasználás / Auth
+
+users
+
+id (uuid, pk)
+
+email
+
+password_hash
+
+created_at
+
+last_login_at
+
+user_profile
+
+user_id (fk users.id)
+
+username
+
+avatar (szín / ikon)
+
+level
+
+xp
+
+soft_currency
+
+hard_currency
+
+3.2. Progression / meta
+
+unlocks
+
+id
+
+user_id
+
+building_type
+
+unit_type
+
+level_unlocked
+
+match_history
+
+id
+
+user_id
+
+match_id
+
+result (win/lose/draw)
+
+kills
+
+deaths
+
+resources_gained
+
+duration_sec
+
+3.3. Map & game meta
+
+maps
+
+id
+
+name
+
+width
+
+height
+
+max_players
+
+base_layout_json (spawn pozíciók stb.)
+
+map_tiles
+
+id
+
+map_id
+
+x
+
+y
+
+tile_type (plain/defense/resource/water/event)
+
+build_slots
+
+(MVP-ben tile layout mehet JSON-ben is, de hosszú távon jó tábla.)
+
+3.4. Shop (ha kell később)
+
+shop_items
+
+id
+
+type (skin, booster, starterpack)
+
+price_soft
+
+price_hard
+
+meta_json
+
+4. Backend – API (Express) terv
+4.1. Projekt struktúra
+backend/
+  src/
+    app.ts
+    config/
+      env.ts
+      db.ts
+      redis.ts
+    modules/
+      auth/
+        auth.controller.ts
+        auth.service.ts
+        auth.routes.ts
+      user/
+        user.controller.ts
+        user.service.ts
+        user.routes.ts
+      lobby/
+        lobby.controller.ts
+        lobby.service.ts
+        lobby.routes.ts
+      shop/
+        shop.controller.ts
+        shop.service.ts
+        shop.routes.ts
+    middleware/
+      authGuard.ts
+      errorHandler.ts
+    utils/
+      logger.ts
+      password.ts
+    game-server/
+      index.ts
+      matchManager.ts
+      match.ts
+      entities/
+        unit.ts
+        building.ts
+        tile.ts
+      systems/
+        movementSystem.ts
+        combatSystem.ts
+        captureSystem.ts
+        spawnSystem.ts
+      ai/
+        basicAi.ts
+
+4.2. Fő REST endpointok
+
+Auth:
+
+POST /api/auth/register – reg
+
+POST /api/auth/login – JWT
+
+POST /api/auth/logout – token blacklist (opcionális)
+
+GET /api/auth/me – aktuális user
+
+User / profil:
+
+GET /api/user/me – profil, currency, szint
+
+GET /api/user/progress – unlockok
+
+PUT /api/user/profile – név, avatar módosítás
+
+Lobby / matchmaking (MVP-ben AI ellen):
+
+POST /api/lobby/quick-play – indít egy match-et AI-val, visszaad match_id, ws_url, token
+
+GET /api/lobby/matches – aktív / recent matches
+
+Shop / economy (későbbre):
+
+GET /api/shop – elérhető itemek
+
+POST /api/shop/buy – vásárlás
+
+5. Game-server megtervezése
+
+Lehet külön process, de akár ugyanazon Node app külön moduljaként fut (MVP-hez elég).
+
+5.1. WebSocket protokoll
+
+Client → Server események:
+
+join_match
+
+{ "type": "join_match", "matchId": "xxx", "authToken": "..." }
+
+
+build_request
+
+{ "type": "build_request", "tile": { "x": 10, "y": 5 }, "buildingType": "barracks" }
+
+
+ability_use
+
+{ "type": "ability_use", "ability": "firestorm", "target": { "x": 15, "y": 8 } }
+
+
+(Érdemes nagyon minimalista inputot tartani, hogy ne lehessen csalni.)
+
+Server → Client események:
+
+match_state – teljes/batch állapot frissítés
+
+{
+  "type": "match_state",
+  "tick": 1234,
+  "players": [...],
+  "tiles": [...],
+  "units": [...],
+  "buildings": [...]
+}
+
+
+delta_state – csak változások (később)
+
+match_event – pl. “meteor”, “bonus-box”
+
+match_end – győzelem/vereség, jutalmak
+
+5.2. Match szerkezet (szerveren, TypeScript pseudo)
+class Match {
+  id: string;
+  map: MapData;
+  players: PlayerState[];
+  tiles: TileState[];  // owner, building, capture progress
+  units: UnitState[];
+  buildings: BuildingState[];
+  tick: number;
+  status: 'waiting' | 'running' | 'finished';
+
+  constructor(...) {}
+
+  update(dt: number) {
+    spawnSystem(this, dt);
+    movementSystem(this, dt);
+    combatSystem(this, dt);
+    captureSystem(this, dt);
+    aiSystem(this, dt);
+    this.tick++;
+  }
+}
+
+5.3. Tick loop
+
+Server tick: 100ms (10 FPS logika), kliens interpolál
+
+Minden tick:
+
+egységek pozíció update
+
+támadás számítás
+
+capture progress
+
+halott egységek removal
+
+event triggerek
+
+Tick után:
+
+összegyűjtöd a változásokat, kiküldöd WebSocketen (match_state / delta_state)
+
+5.4. AI logika (MVP)
+
+Egyszerű stratégia:
+
+ha van szomszédos neutral tile → oda küld egységet
+
+ha player közel van → fókuszálja
+
+random épít:
+
+mine, 2. barracks, 3. turret
+
+AI paraméterezése:
+aggressiveness, defensiveness, expansion_rate
+
+6. Frontend – Vue + Vite + Tailwind + Pixi
+6.1. Projekt struktúra
+frontend/
+  src/
+    main.ts
+    App.vue
+    router/
+      index.ts
+    store/
+      user.ts
+      ui.ts
+      game.ts
+    components/
+      ui/
+        Button.vue
+        Modal.vue
+      layout/
+        MainLayout.vue
+      hud/
+        ResourceBar.vue
+        AbilityBar.vue
+        Minimap.vue
+      game/
+        GameCanvas.vue
+        TileHighlight.vue
+    views/
+      HomeView.vue
+      LoginView.vue
+      LobbyView.vue
+      GameView.vue
+      ProfileView.vue
+    game/
+      pixi/
+        createApp.ts
+        layers/
+          TilesLayer.ts
+          UnitsLayer.ts
+          EffectsLayer.ts
+        utils/
+          textureLoader.ts
+          camera.ts
+          input.ts
+      net/
+        wsClient.ts
+        messageTypes.ts
+
+6.2. Fő nézetek
+
+HomeView – promó, “Play”
+
+LoginView/RegisterView – auth
+
+LobbyView
+
+Quick Play gomb
+
+Profil infó, statisztika
+
+GameView
+
+<GameCanvas />
+
+HUD overlay (ResourceBar, AbilityBar, Minimap)
+
+6.3. State management (Pinia)
+
+user store
+
+state: user, token, profile
+
+actions: login, logout, fetchProfile
+
+game store
+
+state:
+
+matchId
+
+phase (loading, running, ended)
+
+tiles, units, buildings (csak UI reprezentáció, szerver-függő)
+
+actions:
+
+connectToMatch()
+
+sendBuildRequest()
+
+handleServerMessage()
+
+6.4. PixiJS integráció
+
+GameCanvas.vue – fő elem:
+
+onMounted:
+
+init Pixi app (createApp.ts)
+
+init tile grid sprite-ek
+
+init unit és effect layer
+
+subscribe game store-ra és WS üzenetekre
+
+onUnmounted:
+
+destroy Pixi app
+
+Layers:
+
+TilesLayer – tile sprite-ek (szín = owner)
+
+UnitsLayer – unit spritek (kis figurák, animációk)
+
+EffectsLayer – lövedékek, robbanások, event effekt
+
+Input kezelés:
+
+kattintás → konvertálás Pixi coord → tile coord
+
+event emit → game store → WS build_request vagy ability
+
+6.5. Tailwind + UI
+
+Alap Tailwind config:
+
+custom color palette (pl. player színek)
+
+font, spacing
+
+Komponensek:
+
+ResourceBar – gold/metal/crystal + animált változás
+
+AbilityBar – ability cooldown-okkal
+
+Minimap – kis SVG/Pixi mini grid
+
+FloatingNotifications – kill feed, event log
+
+7. Docker & DevOps terv
+7.1. Dockerfile-k
+
+frontend/Dockerfile
+
+base: node:22-alpine
+
+npm ci
+
+npm run build
+
+stage 2: nginx:alpine, COPY dist /usr/share/nginx/html
+
+backend/Dockerfile
+
+base: node:22-alpine
+
+npm ci
+
+npm run build
+
+node dist/app.js
+
+7.2. docker-compose (vázlat)
+version: "3.9"
+services:
+  api:
+    build: ./backend
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=db
+      - REDIS_HOST=redis
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build: ./frontend
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: game
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: game
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - frontend
+    ports:
+      - "80:80"
+
+volumes:
+  db-data:
+
+
+(Lehet a game-server ugyanaz az api konténer, csak külön porton WebSocket.)
+
+8. Fejlesztési roadmap (MVP → Beta → Live)
+Fázis 1 – Core technikai alapok (1–2 hét)
+
+Backend skeleton (Express, auth, user, db kapcsolat)
+
+Frontend skeleton (Vue, router, Pinia, Tailwind)
+
+Pixi app init, egyszerű grid render
+
+WebSocket kapcsolat (dummy ping-pong)
+
+Fázis 2 – Játékmag (2–3 hét)
+
+Tile rendszer a game-serveren
+
+Egység entity + movementSystem (grid lépésről lépésre)
+
+CombatSystem (damage, death)
+
+CaptureSystem (tile foglalás)
+
+SpawnSystem (barracks spawns)
+
+AI alap logika
+
+Match vége + resultat mentés DB-be
+
+Fázis 3 – UI & UX (1–2 hét)
+
+HUD (ResourceBar, AbilityBar)
+
+Minimap prototípus
+
+Animációk Pixiben (egység mozgás, lövések)
+
+Vizuális feedback (tile színváltás, robbanások)
+
+Fázis 4 – Progression & polish (2 hét+)
+
+XP, szintlépés, unlockok
+
+Több map, nehézségi fok
+
+Eventek (meteor, láda, buff)
+
+Performance tuning (delta state, culling, LOD)
+
+Bugfix, balanszolás
+
+9. Biztonság & skálázás
+
+JWT alapú auth, refresh token opcionálisan
+
+Rate limit az API-n (express-rate-limit)
+
+Game-server külön skálázható (match-ek több instance között szétosztva – későbbi fázis)
+
+Anti-cheat: game logika minden a szerveren fut, kliens csak “kéri” az akciót
