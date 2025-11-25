@@ -12,9 +12,18 @@
 </template>
 
 <script setup lang="ts">
-const pills = [
-  { label: "Gold", value: "1200", color: "text-amber-300" },
-  { label: "Metal", value: "600", color: "text-sky-300" },
-  { label: "Crystal", value: "75", color: "text-purple-300" },
-];
+import { computed } from "vue";
+import { useGameStore } from "../../store/game";
+
+const game = useGameStore();
+const gold = computed(() => {
+  const me = game.resources.find((r) => r.owner === game.playerId);
+  return me ? me.gold : 0;
+});
+
+const pills = computed(() => [
+  { label: "Gold", value: gold.value.toString(), color: "text-amber-300" },
+  { label: "Metal", value: "0", color: "text-sky-300" },
+  { label: "Crystal", value: "0", color: "text-purple-300" },
+]);
 </script>

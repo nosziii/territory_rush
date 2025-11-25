@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="grid lg:grid-cols-[1fr_320px] gap-6 p-6">
     <div class="space-y-4">
       <GameCanvas />
@@ -12,17 +12,17 @@
       <div class="glass rounded-lg p-4">
         <h3 class="font-semibold mb-2">Match info</h3>
         <p class="text-sm text-slate-300">Tick: {{ game.tick }}</p>
-        <p class="text-sm text-slate-300 capitalize">Fázis: {{ game.phase }}</p>
+        <p class="text-sm text-slate-300 capitalize">Phase: {{ game.phase }}</p>
         <p v-if="game.lastError" class="text-sm text-red-400 mt-2">{{ game.lastError }}</p>
         <p class="text-sm text-slate-400 mt-2">
-          Tipp: kattints a rácson egy tile-ra, hogy oda irányíts egy erősítést.
+          Tip: válassz abilityt, majd kattints a rácsra a célzáshoz. Rally módban rally pontot állíthatsz.
         </p>
         <div class="flex gap-2 mt-3">
           <button
             class="px-3 py-2 bg-primary text-black rounded hover:scale-[1.01] transition"
             @click="sendCenterWave"
           >
-            Erősítés középre
+            Reinforce center
           </button>
         </div>
         <button
@@ -47,6 +47,6 @@ import { useGameStore } from "../store/game";
 const game = useGameStore();
 
 function sendCenterWave() {
-  game.sendAbility(5, 5);
+  game.sendAbility(7, 7, "reinforce");
 }
 </script>

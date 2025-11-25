@@ -9,4 +9,8 @@ export interface UnitState {
   hp: number;
   targetX: number;
   targetY: number;
+  dmg: number;
+  range: number;
+  canSail?: boolean;
+  speed?: number;
 }

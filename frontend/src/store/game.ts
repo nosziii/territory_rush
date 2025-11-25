@@ -13,6 +13,7 @@ interface TileState {
   owner: string | null;
   type: string;
   capture: number;
+  height?: number;
 }
 
 interface UnitState {
@@ -24,6 +25,34 @@ interface UnitState {
   hp: number;
   targetX: number;
   targetY: number;
+  dmg?: number;
+  range?: number;
+  canSail?: boolean;
+}
+
+interface BuildingState {
+  id: string;
+  owner: string;
+  type: string;
+  x: number;
+  y: number;
+  hp: number;
+  level: number;
+}
+
+interface ProjectileState {
+  id: string;
+  owner: string;
+  x: number;
+  y: number;
+  targetX: number;
+  targetY: number;
+  ttl: number;
+}
+
+interface ResourceState {
+  owner: string;
+  gold: number;
 }
 
 export const useGameStore = defineStore("game", {
@@ -33,9 +62,15 @@ export const useGameStore = defineStore("game", {
     phase: "idle" as MatchPhase,
     tiles: [] as TileState[],
     units: [] as UnitState[],
+    buildings: [] as BuildingState[],
+    projectiles: [] as ProjectileState[],
+    resources: [] as ResourceState[],
     ws: null as WebSocket | null,
     tick: 0,
     lastError: "",
+    abilityReadyAt: 0,
+    targetingAbility: "" as string,
+    rallyMode: false,
   }),
   actions: {
     connect(
@@ -61,6 +96,9 @@ export const useGameStore = defineStore("game", {
           this.tick = message.tick;
           this.tiles = message.tiles ?? [];
           this.units = message.units ?? [];
+          this.buildings = message.buildings ?? [];
+          this.projectiles = message.projectiles ?? [];
+          this.resources = message.resources ?? [];
           this.phase = "running";
         }
       };
@@ -77,16 +115,32 @@ export const useGameStore = defineStore("game", {
         this.phase = "ended";
       };
     },
-    sendAbility(x: number, y: number) {
+    sendAbility(x: number, y: number, ability = "reinforce") {
       if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (!this.abilityReady()) {
+        this.lastError = "Ability cooldown...";
+        return;
+      }
       this.ws.send(
         JSON.stringify({
           type: "ability_use",
           matchId: this.matchId,
           playerId: this.playerId,
           target: { x, y },
+          ability,
         })
       );
+      this.abilityReadyAt = Date.now() + 5000;
+      this.targetingAbility = "";
+    },
+    abilityReady() {
+      return Date.now() >= this.abilityReadyAt;
+    },
+    startTargeting(ability: string) {
+      this.targetingAbility = ability;
+    },
+    toggleRallyMode() {
+      this.rallyMode = !this.rallyMode;
     },
     disconnect() {
       this.ws?.close();
@@ -94,7 +148,11 @@ export const useGameStore = defineStore("game", {
       this.phase = "idle";
       this.tiles = [];
       this.units = [];
+      this.buildings = [];
+      this.projectiles = [];
+      this.resources = [];
       this.matchId = "";
+      this.lastError = "";
     },
   },
 });

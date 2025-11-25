@@ -40,6 +40,8 @@ const game = useGameStore();
 const wsUrl = ref("ws://localhost:4000/ws");
 const matchId = ref("");
 const matchIdInput = ref("");
+import { useRouter } from "vue-router";
+const router = useRouter();
 
 async function startQuickPlay() {
   const { data } = await axios.post("/lobby/quick-play");
@@ -49,6 +51,7 @@ async function startQuickPlay() {
     import.meta.env.VITE_WS_URL ||
     `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}${data.wsUrl ?? "/ws"}`;
   connect();
+  router.push("/game");
 }
 
 function connect() {

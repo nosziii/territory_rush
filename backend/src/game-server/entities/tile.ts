@@ -6,4 +6,6 @@ export interface TileState {
   type: TileType;
   owner: string | null;
   capture: number;
+  height: number;
+  walkable?: boolean;
 }

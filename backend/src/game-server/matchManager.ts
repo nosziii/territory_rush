@@ -13,6 +13,7 @@ interface AbilityMessage {
   matchId: string;
   playerId: string;
   target: { x: number; y: number };
+  ability?: string;
 }
 
 export class MatchManager {
@@ -37,7 +38,7 @@ export class MatchManager {
     }
     if (isAbilityMessage(message)) {
       const match = this.matches.get(message.matchId);
-      match?.handleAbility(message.playerId, message.target);
+      match?.handleAbility(message.playerId, message.target, message.ability);
     }
   }
 

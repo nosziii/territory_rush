@@ -2,7 +2,7 @@
   <div class="glass rounded-xl overflow-hidden">
     <div
       ref="container"
-      class="w-full h-[480px] bg-slate-950 relative"
+      class="w-full h-[560px] bg-slate-950 relative"
       @click="handleClick"
     >
       <div v-if="game.phase === 'idle'" class="absolute inset-0 flex items-center justify-center text-slate-400">
@@ -18,6 +18,9 @@ import { useGameStore } from "../../store/game";
 import { createPixiApp } from "../../game/pixi/createApp";
 import { drawTiles } from "../../game/pixi/layers/TilesLayer";
 import { drawUnits } from "../../game/pixi/layers/UnitsLayer";
+import { drawDeco } from "../../game/pixi/layers/DecoLayer";
+import { drawProjectiles } from "../../game/pixi/layers/ProjectilesLayer";
+import { drawBuildings } from "../../game/pixi/layers/BuildingsLayer";
 
 const container = ref<HTMLDivElement | null>(null);
 const game = useGameStore();
@@ -31,6 +34,7 @@ onMounted(async () => {
     (tiles) => {
       if (app) {
         drawTiles(app, tiles);
+        drawDeco(app, tiles);
       }
     },
     { deep: true }
@@ -44,10 +48,31 @@ onMounted(async () => {
     },
     { deep: true }
   );
+  watch(
+    () => game.buildings ?? [],
+    (buildings) => {
+      if (app) {
+        drawBuildings(app, buildings);
+      }
+    },
+    { deep: true }
+  );
+  watch(
+    () => game.projectiles ?? [],
+    (projectiles) => {
+      if (app) {
+        drawProjectiles(app, projectiles);
+      }
+    },
+    { deep: true }
+  );
 });
 
 onBeforeUnmount(() => {
-  app?.destroy();
+  if (app) {
+    app.destroy(true, { children: true, texture: true, baseTexture: true });
+    app = null;
+  }
 });
 
 function handleClick(event: MouseEvent) {
@@ -57,6 +82,15 @@ function handleClick(event: MouseEvent) {
   const x = Math.floor((event.clientX - rect.left) / size);
   const y = Math.floor((event.clientY - rect.top) / size);
   if (x < 0 || y < 0 || x > 9 || y > 9) return;
-  game.sendAbility(x, y);
+  if (game.rallyMode) {
+    // Rally simply sets ability targeting for reinforce at chosen tile
+    game.sendAbility(x, y, "reinforce");
+    game.toggleRallyMode();
+    return;
+  }
+  if (game.targetingAbility) {
+    game.sendAbility(x, y, game.targetingAbility);
+    return;
+  }
 }
 </script>
