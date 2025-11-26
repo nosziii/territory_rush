@@ -59,6 +59,25 @@ export class MatchManager {
     this.matches.set(matchId, newMatch);
     return newMatch;
   }
+
+  getMatches() {
+    return Array.from(this.matches.values()).map((m) => ({
+      id: m.matchId,
+      players: m.players.length,
+      tick: m.tick,
+    }));
+  }
+
+  stopMatch(matchId: string) {
+    const match = this.matches.get(matchId);
+    if (match) {
+      // Close connections
+      match.players.forEach(p => p.socket.close());
+      this.matches.delete(matchId);
+      return true;
+    }
+    return false;
+  }
 }
 
 function isJoinMessage(msg: unknown): msg is JoinMessage {

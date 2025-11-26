@@ -31,7 +31,7 @@ interface Target {
 }
 
 export class Match {
-  private players: PlayerConnection[] = [];
+  public players: PlayerConnection[] = [];
   private tiles: TileState[] = [];
   private units: UnitState[] = [];
   private buildings: BuildingState[] = [];
@@ -39,14 +39,14 @@ export class Match {
   private factionOrder = ["player", "ai1", "ai2", "ai3"];
   private projectiles: Projectile[] = [];
   private resources = new Map<string, number>();
-  private tick = 0;
+  public tick = 0;
 
   // Game Constants
   private readonly MAP_SIZE = 32;
   private readonly TICK_RATE = 100; // ms
 
   constructor(
-    private id: string,
+    public readonly matchId: string,
     private logger: Logger
   ) {
     this.tiles = this.createDemoTiles();
