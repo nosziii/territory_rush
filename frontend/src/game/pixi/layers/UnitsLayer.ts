@@ -92,50 +92,69 @@ function getMaxHp(type?: string) {
 // --- Unit Drawers ---
 
 function drawMelee(g: Graphics, x: number, y: number, color: number) {
-    // Knight-like helmet shape
-    g.rect(x - 6, y - 8, 12, 14).fill(color).stroke({ color: 0xffffff, width: 2 });
-    // Visor
-    g.rect(x - 4, y - 4, 8, 2).fill(0x000000);
-    // Plume
-    g.circle(x, y - 10, 3).fill(0xffffff);
+    // Body/Armor
+    g.rect(x - 5, y - 8, 10, 12).fill(color).stroke({ color: 0xffffff, width: 1 });
+    // Head/Helmet
+    g.circle(x, y - 10, 4).fill(0xcccccc).stroke({ color: 0x000000, width: 1 });
+    // Shield
+    g.poly([x - 4, y - 2, x - 8, y - 2, x - 8, y + 6, x - 4, y + 8]).fill(0x888888).stroke({ color: 0xffffff, width: 1 });
+    // Sword
+    g.rect(x + 6, y - 6, 2, 12).fill(0xdddddd);
+    g.rect(x + 4, y + 2, 6, 2).fill(0x666666); // Hilt
 }
 
 function drawRanged(g: Graphics, x: number, y: number, color: number) {
-    // Hooded figure (Triangle)
-    g.poly([x, y - 12, x + 8, y + 8, x - 8, y + 8]).fill(color).stroke({ color: 0xffffff, width: 2 });
+    // Body (Lighter armor)
+    g.poly([x, y - 10, x + 5, y + 5, x - 5, y + 5]).fill(color);
+    // Head (Hood)
+    g.poly([x, y - 12, x + 4, y - 8, x - 4, y - 8]).fill(color);
     // Bow
-    g.arc(x + 4, y, 8, -Math.PI / 2, Math.PI / 2).stroke({ color: 0xffffff, width: 2 });
+    g.arc(x + 4, y, 8, -Math.PI / 2, Math.PI / 2).stroke({ color: 0x8b4513, width: 2 });
+    // Arrow
+    g.moveTo(x + 4, y).lineTo(x + 12, y).stroke({ color: 0xffffff, width: 1 });
 }
 
 function drawTank(g: Graphics, x: number, y: number, color: number) {
+    // Tracks
+    g.roundRect(x - 12, y - 8, 4, 16, 2).fill(0x333333);
+    g.roundRect(x + 8, y - 8, 4, 16, 2).fill(0x333333);
     // Body
-    g.rect(x - 10, y - 6, 20, 14).fill(color).stroke({ color: 0xffffff, width: 2 });
+    g.rect(x - 8, y - 6, 16, 12).fill(color).stroke({ color: 0xffffff, width: 1 });
     // Turret
-    g.circle(x, y - 2, 6).fill(0xffffff);
+    g.circle(x, y - 2, 5).fill(0x555555).stroke({ color: 0xffffff, width: 1 });
     // Barrel
-    g.rect(x, y - 4, 12, 4).fill(0xffffff);
+    g.rect(x, y - 3, 14, 3).fill(0x333333);
 }
 
 function drawMage(g: Graphics, x: number, y: number, color: number) {
     // Robe
-    g.poly([x, y - 14, x + 6, y + 8, x - 6, y + 8]).fill(color);
+    g.poly([x, y - 12, x + 6, y + 8, x - 6, y + 8]).fill(color);
     // Staff
-    g.rect(x + 6, y - 10, 2, 20).fill(0xffffff);
-    // Orb
-    g.circle(x + 7, y - 12, 3).fill(0x60a5fa); // Glowing orb
+    g.rect(x + 6, y - 12, 2, 22).fill(0x8b4513);
+    // Magic Orb
+    g.circle(x + 7, y - 14, 3).fill(0x60a5fa);
+    g.circle(x + 7, y - 14, 5).stroke({ color: 0x60a5fa, width: 1, alpha: 0.5 });
 }
 
 function drawAir(g: Graphics, x: number, y: number, color: number) {
-    // Plane/Drone shape
-    g.poly([x, y - 8, x + 10, y + 4, x, y, x - 10, y + 4]).fill(color).stroke({ color: 0xffffff, width: 2 });
-    // Propeller blur
-    g.circle(x, y - 8, 8).fill({ color: 0xffffff, alpha: 0.2 });
+    // Shadow on ground
+    g.ellipse(x, y + 20, 12, 6).fill({ color: 0x000000, alpha: 0.2 });
+    
+    // Plane Body
+    g.poly([x, y - 10, x + 4, y, x, y + 8, x - 4, y]).fill(color).stroke({ color: 0xffffff, width: 1 });
+    // Wings
+    g.poly([x - 4, y - 2, x - 14, y + 4, x - 4, y + 6]).fill(color);
+    g.poly([x + 4, y - 2, x + 14, y + 4, x + 4, y + 6]).fill(color);
 }
 
 function drawShip(g: Graphics, x: number, y: number, color: number) {
+    // Water ripples
+    g.arc(x, y + 8, 10, 0, Math.PI).stroke({ color: 0xffffff, width: 1, alpha: 0.3 });
+    
     // Hull
-    g.poly([x - 10, y - 2, x + 10, y - 2, x + 6, y + 6, x - 6, y + 6]).fill(color).stroke({ color: 0xffffff, width: 2 });
-    // Sail
-    g.poly([x - 2, y - 4, x + 8, y - 4, x + 2, y - 16]).fill(0xffffff);
+    g.poly([x - 10, y - 2, x + 10, y - 2, x + 6, y + 6, x - 6, y + 6]).fill(color).stroke({ color: 0xffffff, width: 1 });
+    // Mast & Sail
+    g.rect(x - 1, y - 14, 2, 12).fill(0x8b4513);
+    g.poly([x, y - 14, x + 10, y - 8, x, y - 4]).fill(0xffffff);
 }
 
