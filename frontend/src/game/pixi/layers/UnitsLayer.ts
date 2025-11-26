@@ -1,23 +1,17 @@
 
 import { Application, Graphics, Container } from "pixi.js";
+import { getTheme, type PlayerColor } from "../theme";
 
 let layer: Container | null = null;
 
-// Palette (Synced with TilesLayer)
-const PALETTE = {
-  player: 0xf472b6, // Pink 400
-  ai1: 0x4ade80, // Green 400
-  ai2: 0xa78bfa, // Violet 400
-  ai3: 0xfacc15, // Yellow 400
-  neutral: 0x94a3b8,
-};
-
 export function drawUnits(
   app: Application | Container,
-  units: { x: number; y: number; owner: string; hp: number; type?: string }[]
+  units: { x: number; y: number; owner: string; hp: number; type?: string }[],
+  playerColor: PlayerColor
 ) {
   if (!units || !Array.isArray(units)) return;
 
+  const theme = getTheme(playerColor);
   const parent = app instanceof Application ? app.stage : app;
 
   if (!layer) {
@@ -36,7 +30,7 @@ export function drawUnits(
     const g = new Graphics();
     layer!.addChild(g);
 
-    const color = getColor(unit.owner);
+    const color = getUnitColor(unit.owner, theme);
     const cx = unit.x * size + size / 2;
     const cy = unit.y * size + size / 2 - 10; // -10 for elevation offset
 
@@ -74,13 +68,13 @@ export function drawUnits(
   });
 }
 
-function getColor(owner: string) {
+function getUnitColor(owner: string, theme: any) {
     switch (owner) {
-        case "player": return PALETTE.player;
-        case "ai1": return PALETTE.ai1;
-        case "ai2": return PALETTE.ai2;
-        case "ai3": return PALETTE.ai3;
-        default: return PALETTE.neutral;
+        case "player": return theme.player.main;
+        case "ai1": return theme.ai1.main;
+        case "ai2": return theme.ai2.main;
+        case "ai3": return theme.ai3.main;
+        default: return theme.neutral.main;
     }
 }
 

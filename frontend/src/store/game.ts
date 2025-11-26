@@ -73,6 +73,7 @@ export const useGameStore = defineStore("game", {
     rallyMode: false,
     hoveredTile: null as { x: number; y: number } | null,
     logs: [] as { message: string; category: string; timestamp: number }[],
+    playerColor: "pink" as "pink" | "green" | "violet" | "yellow",
   }),
   actions: {
     connect(
@@ -176,6 +177,9 @@ export const useGameStore = defineStore("game", {
       this.resources = [];
       this.matchId = "";
       this.lastError = "";
+    },
+    setPlayerColor(color: "pink" | "green" | "violet" | "yellow") {
+      this.playerColor = color;
     },
   },
 });

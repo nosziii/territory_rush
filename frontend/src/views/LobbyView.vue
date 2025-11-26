@@ -14,6 +14,27 @@
       </div>
     </div>
 
+    <div class="glass rounded-xl p-6">
+      <h3 class="text-lg font-semibold mb-4">Select Your Signal</h3>
+      <div class="flex gap-4">
+        <button
+          v-for="color in ['pink', 'green', 'violet', 'yellow']"
+          :key="color"
+          @click="game.setPlayerColor(color as any)"
+          class="w-12 h-12 rounded-full border-2 transition-all hover:scale-110 flex items-center justify-center"
+          :class="[
+            game.playerColor === color ? 'border-white scale-110 shadow-[0_0_15px_rgba(255,255,255,0.5)]' : 'border-transparent opacity-70 hover:opacity-100',
+            color === 'pink' ? 'bg-pink-500' : '',
+            color === 'green' ? 'bg-green-500' : '',
+            color === 'violet' ? 'bg-violet-500' : '',
+            color === 'yellow' ? 'bg-yellow-500' : ''
+          ]"
+        >
+          <div v-if="game.playerColor === color" class="w-2 h-2 bg-white rounded-full"></div>
+        </button>
+      </div>
+    </div>
+
     <div class="glass rounded-xl p-6" v-if="activeMatches.length > 0">
       <h3 class="text-lg font-semibold mb-4">Active Matches</h3>
       <div class="space-y-3">

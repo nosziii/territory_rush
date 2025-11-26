@@ -66,33 +66,33 @@ onMounted(async () => {
   el.addEventListener("wheel", onWheel);
 
   watch(
-    () => [game.tiles, game.hoveredTile, game.targetingAbility],
+    () => [game.tiles, game.hoveredTile, game.targetingAbility, game.playerColor],
     () => {
       if (app && world) {
-        drawTiles(world, game.tiles ?? [], game.hoveredTile, game.targetingAbility); 
-        drawDeco(world, game.tiles ?? []);
+        drawTiles(world, game.tiles ?? [], game.playerColor, game.hoveredTile, game.targetingAbility); 
+        drawDeco(world, game.tiles ?? [], game.playerColor);
       }
     },
     { deep: true }
   );
   watch(
-    () => game.units ?? [],
-    (units) => {
-      if (app && world) drawUnits(world, units);
+    () => [game.units ?? [], game.playerColor],
+    () => {
+      if (app && world) drawUnits(world, game.units ?? [], game.playerColor);
     },
     { deep: true }
   );
   watch(
-    () => game.buildings ?? [],
-    (buildings) => {
-      if (app && world) drawBuildings(world, buildings);
+    () => [game.buildings ?? [], game.playerColor],
+    () => {
+      if (app && world) drawBuildings(world, game.buildings ?? [], game.playerColor);
     },
     { deep: true }
   );
   watch(
-    () => game.projectiles ?? [],
-    (projectiles) => {
-      if (app && world) drawProjectiles(world, projectiles);
+    () => [game.projectiles ?? [], game.playerColor],
+    () => {
+      if (app && world) drawProjectiles(world, game.projectiles ?? [], game.playerColor);
     },
     { deep: true }
   );

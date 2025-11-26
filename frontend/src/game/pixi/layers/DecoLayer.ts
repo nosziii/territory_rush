@@ -1,13 +1,16 @@
 import { Application, Graphics, Container } from "pixi.js";
+import { getTheme, type PlayerColor } from "../theme";
 
 let decoLayer: Graphics | null = null;
 
 export function drawDeco(
   app: Application | Container,
-  tiles: { x: number; y: number; owner: string | null; type: string; height?: number }[]
+  tiles: { x: number; y: number; owner: string | null; type: string; height?: number }[],
+  playerColor: PlayerColor
 ) {
   if (!tiles || !Array.isArray(tiles)) return;
   
+  const theme = getTheme(playerColor);
   const parent = app instanceof Application ? app.stage : app;
 
   // Fix: Check if layer is destroyed (from previous game session)
@@ -26,7 +29,7 @@ export function drawDeco(
     if (tile.type === "water") return;
     if (Math.random() < 0.95) return; 
     
-    const color = decoColor(tile.owner);
+    const color = decoColor(tile.owner, theme);
     const height = tile.height || 1;
     const elevation = (height - 1) * 10;
 
@@ -40,11 +43,11 @@ export function drawDeco(
   });
 }
 
-function decoColor(owner: string | null) {
-  if (!owner) return 0x94a3b8;
-  if (owner === "player") return 0xfbbf24;
-  if (owner === "ai1") return 0x38bdf8;
-  if (owner === "ai2") return 0xa855f7;
-  if (owner === "ai3") return 0x22c55e;
+function decoColor(owner: string | null, theme: any) {
+  if (!owner) return theme.neutral.main;
+  if (owner === "player") return theme.player.main;
+  if (owner === "ai1") return theme.ai1.main;
+  if (owner === "ai2") return theme.ai2.main;
+  if (owner === "ai3") return theme.ai3.main;
   return 0xffffff;
 }

@@ -20,7 +20,7 @@
             <div class="w-2 h-2 rounded-full" :class="game.ws?.readyState === 1 ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'"></div>
             <span class="text-xs font-mono text-slate-400">{{ game.ws?.readyState === 1 ? 'ONLINE' : 'OFFLINE' }}</span>
           </div>
-          <button @click="game.disconnect" class="text-sm text-slate-400 hover:text-white transition-colors">
+          <button @click="leaveMatch" class="text-sm text-slate-400 hover:text-white transition-colors">
             Leave Match
           </button>
         </div>
@@ -76,15 +76,22 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { useRoute } from "vue-router";
+import { useRouter } from "vue-router";
 import { useGameStore } from "../store/game";
 import GameCanvas from "../components/game/GameCanvas.vue";
 import ResourceBar from "../components/hud/ResourceBar.vue";
 import AbilityBar from "../components/hud/AbilityBar.vue";
 import Minimap from "../components/hud/Minimap.vue";
-import InfoPanel from "../components/hud/InfoPanel.vue"; // Import InfoPanel
+import InfoPanel from "../components/hud/InfoPanel.vue"; 
 
 const route = useRoute();
+const router = useRouter();
 const game = useGameStore();
+
+function leaveMatch() {
+  game.disconnect();
+  router.push("/");
+}
 
 onMounted(() => {
   const matchId = route.params.id as string;
