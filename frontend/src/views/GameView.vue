@@ -70,6 +70,32 @@
 
       </div>
     </div>
+
+    <!-- Game Over Overlay -->
+    <div v-if="game.winner" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div class="bg-slate-900 border border-white/10 p-8 rounded-2xl shadow-2xl text-center max-w-md w-full transform transition-all scale-100">
+        <div class="mb-6">
+          <div v-if="game.winner === game.playerId" class="text-6xl mb-2">🏆</div>
+          <div v-else class="text-6xl mb-2">💀</div>
+          
+          <h2 class="text-4xl font-black tracking-tighter bg-clip-text text-transparent"
+              :class="game.winner === game.playerId ? 'bg-gradient-to-br from-yellow-300 to-amber-600' : 'bg-gradient-to-br from-gray-300 to-slate-600'">
+            {{ game.winner === game.playerId ? 'VICTORY' : 'DEFEAT' }}
+          </h2>
+          <p class="text-slate-400 mt-2 font-mono">
+            {{ game.winner === game.playerId ? 'You have conquered the territory!' : 'Your base has been destroyed.' }}
+          </p>
+        </div>
+
+        <div class="space-y-3">
+          <button @click="leaveMatch" 
+            class="w-full py-3 px-6 rounded-lg font-bold text-white shadow-lg transition-all transform hover:scale-105 active:scale-95"
+            :class="game.winner === game.playerId ? 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500' : 'bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-500 hover:to-slate-600'">
+            Return to Lobby
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 

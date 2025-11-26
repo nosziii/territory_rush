@@ -74,6 +74,7 @@ export const useGameStore = defineStore("game", {
     hoveredTile: null as { x: number; y: number } | null,
     logs: [] as { message: string; category: string; timestamp: number }[],
     playerColor: "pink" as "pink" | "green" | "violet" | "yellow",
+    winner: null as string | null,
   }),
   actions: {
     connect(
@@ -109,6 +110,9 @@ export const useGameStore = defineStore("game", {
             timestamp: message.timestamp
           });
           if (this.logs.length > 50) this.logs.pop();
+        } else if (message.type === "game_over") {
+          this.winner = message.winner;
+          this.phase = "ended";
         }
       };
       this.ws.onerror = (err) => {

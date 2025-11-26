@@ -19,10 +19,11 @@
         <div v-if="!(cooldown > 0 && game.targetingAbility !== ability.id)" class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
         
         <div class="flex flex-col items-center gap-1">
-            <span class="text-xs uppercase tracking-widest opacity-70">{{ ability.label }}</span>
-            <span v-if="cooldown > 0 && game.targetingAbility !== ability.id" class="text-sm font-mono">{{ Math.ceil(cooldown / 1000) }}s</span>
-            <span v-else-if="game.targetingAbility === ability.id" class="text-sm animate-pulse">SELECT TARGET</span>
-            <span v-else class="text-lg leading-none">⚡</span>
+            <span class="text-lg leading-none">{{ ability.icon }}</span>
+            <span class="text-[10px] uppercase tracking-widest opacity-70">{{ ability.label }}</span>
+            <span v-if="cooldown > 0 && game.targetingAbility !== ability.id" class="text-xs font-mono">{{ Math.ceil(cooldown / 1000) }}s</span>
+            <span v-else-if="game.targetingAbility === ability.id" class="text-xs animate-pulse text-amber-900 font-bold">TARGET</span>
+            <span v-else class="text-xs font-mono text-amber-400">{{ ability.cost }}G</span>
         </div>
         </button>
     </div>
@@ -68,14 +69,18 @@ onUnmounted(() => {
 });
 
 const abilities = [
-  { id: "reinforce", label: "Erosites" },
-  { id: "artillery", label: "Tuzcsapas" },
-  { id: "heal", label: "Gyogyitas" },
+  { id: "reinforce", label: "Reinforce", cost: 100, icon: "🛡️" },
+  { id: "fireball", label: "Fireball", cost: 200, icon: "🔥" },
+  { id: "heal", label: "Heal", cost: 150, icon: "💚" },
+  { id: "artillery", label: "Artillery", cost: 300, icon: "💥" },
 ];
 
 const buildings = [
     { id: "barracks", label: "Barracks", cost: 150 },
     { id: "archery", label: "Archery", cost: 200 },
+    { id: "heavy_factory", label: "Factory", cost: 300 },
+    { id: "mage_tower", label: "Mage Twr", cost: 350 },
+    { id: "airport", label: "Airport", cost: 400 },
     { id: "turret", label: "Turret", cost: 250 },
     { id: "mine", label: "Mine", cost: 100 },
 ];

@@ -55,7 +55,10 @@ export class MatchManager {
   }
 
   private createMatch(matchId: string) {
-    const newMatch = new Match(matchId, this.logger);
+    const newMatch = new Match(matchId, this.logger, (id) => {
+      this.logger.info(`Match ${id} ended, cleaning up.`);
+      this.stopMatch(id);
+    });
     this.matches.set(matchId, newMatch);
     return newMatch;
   }

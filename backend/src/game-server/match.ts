@@ -18,6 +18,9 @@ interface Projectile {
   targetX: number;
   targetY: number;
   ttl: number;
+  damage?: number;
+  radius?: number;
+  type?: string;
 }
 
 interface ResourceState {
@@ -40,6 +43,7 @@ export class Match {
   private projectiles: Projectile[] = [];
   private resources = new Map<string, number>();
   public tick = 0;
+  private gameEnded = false;
 
   // Game Constants
   private readonly MAP_SIZE = 32;
@@ -47,7 +51,8 @@ export class Match {
 
   constructor(
     public readonly matchId: string,
-    private logger: Logger
+    private logger: Logger,
+    private onMatchEnd: (matchId: string) => void
   ) {
     this.tiles = this.createDemoTiles();
   }
@@ -99,18 +104,23 @@ export class Match {
 
   handleAbility(playerId: string, target: { x: number; y: number }, ability = "reinforce") {
     const owned = this.tiles.find(
-      (t) => t.owner === playerId && Math.abs(t.x - target.x) + Math.abs(t.y - target.y) <= 2
+      (t) => t.owner === playerId && Math.abs(t.x - target.x) + Math.abs(t.y - target.y) <= 5
     );
-    if (!owned && ability !== "artillery") return;
+
+    // Reinforce needs a nearby tile, others might have different rules
+    if (ability === "reinforce" && !owned) return;
 
     if (ability === "reinforce") {
+      const spawnTile = this.tiles.find(t => t.owner === playerId && Math.abs(t.x - target.x) + Math.abs(t.y - target.y) <= 2) || owned;
+      if (!spawnTile) return;
+
       for (let i = 0; i < 4; i++) {
         this.units.push({
           id: uuid(),
           owner: playerId,
           type: "melee",
-          x: owned!.x,
-          y: owned!.y,
+          x: spawnTile.x,
+          y: spawnTile.y,
           hp: 100,
           targetX: target.x,
           targetY: target.y,
@@ -119,25 +129,46 @@ export class Match {
           speed: 1.5,
         });
       }
-      this.logEvent(`Reinforcements deployed at ${owned!.x},${owned!.y}`, "combat");
+      this.logEvent(`Reinforcements deployed at ${spawnTile.x},${spawnTile.y}`, "combat");
     } else if (ability === "artillery") {
       this.projectiles.push({
         id: uuid(),
         owner: playerId,
         x: target.x,
-        y: target.y - 5,
+        y: target.y - 10, // Drop from sky
         targetX: target.x,
         targetY: target.y,
-        ttl: 0.6,
+        ttl: 1.0,
+        damage: 150,
+        radius: 3,
+        type: "artillery"
       });
-      const radius = 3;
-      this.units.forEach((u) => {
-        const dist = Math.hypot(u.x - target.x, u.y - target.y);
-        if (dist <= radius) {
-          u.hp -= 100;
-        }
-      });
-      this.logEvent(`Artillery strike at ${target.x},${target.y}`, "combat");
+      this.logEvent(`Artillery strike incoming at ${target.x},${target.y}`, "combat");
+    } else if (ability === "fireball") {
+       // Spawn fireball from nearest Mage Tower or Base
+       const source = this.buildings.find(b => b.owner === playerId && (b.type === 'mage_tower' || b.type === 'base'));
+       if (!source) return;
+
+       this.projectiles.push({
+         id: uuid(),
+         owner: playerId,
+         x: source.x,
+         y: source.y,
+         targetX: target.x,
+         targetY: target.y,
+         ttl: 2.0,
+         damage: 200,
+         radius: 2,
+         type: "fireball"
+       });
+       this.logEvent(`Fireball cast towards ${target.x},${target.y}`, "combat");
+    } else if (ability === "heal") {
+       this.units.forEach(u => {
+         if (u.owner === playerId && Math.hypot(u.x - target.x, u.y - target.y) < 4) {
+           u.hp = Math.min(u.hp + 100, 500); // Cap HP?
+         }
+       });
+       this.logEvent(`Heal spell cast at ${target.x},${target.y}`, "info");
     }
   }
 
@@ -145,7 +176,7 @@ export class Match {
     this.tick += 1;
     this.spawnSystem(dt);
     this.movementSystem(dt);
-    this.combatSystem();
+    this.combatSystem(dt); // Pass dt
     this.updateProjectiles(dt);
     this.captureSystem(dt);
     this.cleanupUnits();
@@ -412,38 +443,86 @@ export class Match {
     return { x: unit.x, y: unit.y };
   }
 
-  private combatSystem() {
-    const tileBuckets = new Map<string, UnitState[]>();
+  private combatSystem(dt: number) {
+    // Cooldowns for shooting could be added, for now assume attack speed is handled by probability or dt
+    // Let's use a simple timer per unit? Or just probability per tick.
+    // With dt=0.1 (100ms), 1 sec = 10 ticks.
+    // Let's say units attack every 1 second.
+    
     for (const unit of this.units) {
-      const key = `${Math.round(unit.x)}-${Math.round(unit.y)}`;
-      const bucket = tileBuckets.get(key) ?? [];
-      bucket.push(unit);
-      tileBuckets.set(key, bucket);
-    }
-    for (const [key, bucket] of tileBuckets.entries()) {
-      const owners = new Set(bucket.map((u) => u.owner));
-      if (owners.size <= 1) continue;
+       // Simple cooldown check using random for now to avoid storing state per unit
+       // If attack speed is 1.0, chance is dt.
+       if (Math.random() > dt * 1.5) continue; 
 
-      for (const unit of bucket) {
-        const enemy = bucket.find(u => u.owner !== unit.owner);
-        if (enemy) {
-          let dmg = (unit.dmg ?? 10) * 0.1;
-          
-          // Mage Area Damage (Splash)
-          if (unit.type === 'mage') {
-             bucket.filter(u => u.owner !== unit.owner).forEach(u => u.hp -= dmg * 0.5);
-          } else {
-             enemy.hp -= dmg;
-          }
-        }
+       const target = this.findTarget(unit);
+       if (target) {
+         const dist = Math.hypot(target.x - unit.x, target.y - unit.y);
+         const range = unit.range || 1;
+
+         if (dist <= range) {
+            if (range > 1.5) {
+              // Ranged attack -> Projectile
+              this.projectiles.push({
+                id: uuid(),
+                owner: unit.owner,
+                x: unit.x,
+                y: unit.y,
+                targetX: target.x,
+                targetY: target.y,
+                ttl: dist / 5, // Speed 5
+                damage: unit.dmg || 10,
+                radius: 0.5,
+                type: "arrow"
+              });
+            } else {
+              // Melee attack -> Instant damage
+              if ('hp' in target) { // It's a unit or building
+                 target.hp -= (unit.dmg || 10);
+              }
+            }
+         }
+       }
+    }
+  }
+
+  private findTarget(unit: UnitState): UnitState | BuildingState | null {
+    const range = unit.range || 1;
+    
+    // 1. Look for units
+    let bestUnit: UnitState | null = null;
+    let minDist = range + 0.1;
+
+    for (const other of this.units) {
+      if (other.owner === unit.owner) continue;
+      const dist = Math.hypot(other.x - unit.x, other.y - unit.y);
+      if (dist < minDist) {
+        minDist = dist;
+        bestUnit = other;
       }
     }
+    
+    if (bestUnit) return bestUnit;
+
+    // 2. Look for buildings
+    let bestBuilding: BuildingState | null = null;
+    minDist = range + 0.1;
+
+    for (const b of this.buildings) {
+      if (b.owner === unit.owner) continue;
+      const dist = Math.hypot(b.x - unit.x, b.y - unit.y);
+      if (dist < minDist) {
+        minDist = dist;
+        bestBuilding = b;
+      }
+    }
+    
+    return bestBuilding;
   }
 
   private captureSystem(dt: number) {
     const ownershipDelta = new Map<string, number>();
     for (const unit of this.units) {
-      if ((unit as any).canFly || (unit as any).canSail) continue; // Air/Ships don't capture tiles? Or maybe they do. Let's say only ground units capture.
+      if ((unit as any).canFly || (unit as any).canSail) continue; 
       
       const tile = this.getTile(Math.round(unit.x), Math.round(unit.y));
       if (!tile || tile.type === 'water') continue;
@@ -474,7 +553,44 @@ export class Match {
 
   private cleanupUnits() {
     this.units = this.units.filter((u) => u.hp > 0 && u.x >= 0 && u.y >= 0 && u.x < this.MAP_SIZE && u.y < this.MAP_SIZE);
+    
+    // Cleanup destroyed buildings
+    const destroyedBuildings = this.buildings.filter(b => b.hp <= 0);
+    destroyedBuildings.forEach(b => {
+      this.logEvent(`${b.type} destroyed at ${b.x},${b.y}`, "combat");
+      if (b.type === "base") {
+        this.logEvent(`Player ${b.owner} has been eliminated!`, "info");
+        // Eliminate player logic: remove all their stuff? Or just let them suffer?
+        // Let's remove their units to stop them from lagging the game
+        this.units = this.units.filter(u => u.owner !== b.owner);
+        // And maybe turn their tiles neutral?
+        this.tiles.filter(t => t.owner === b.owner).forEach(t => t.owner = null);
+      }
+    });
+    this.buildings = this.buildings.filter(b => b.hp > 0);
+
     this.projectiles = this.projectiles.filter((p) => p.ttl > 0);
+
+    // Check for win condition
+    if (!this.gameEnded) {
+      const activeBases = this.buildings.filter(b => b.type === "base");
+      const activeOwners = new Set(activeBases.map(b => b.owner));
+
+      if (activeOwners.size === 1 && this.players.length > 0) {
+        this.gameEnded = true;
+        const winner = activeOwners.values().next().value;
+        this.logEvent(`GAME OVER! Winner: ${winner}`, "info");
+        this.broadcast({
+          type: "game_over",
+          winner,
+        });
+        
+        // Cleanup match after 10 seconds
+        setTimeout(() => {
+          this.onMatchEnd(this.matchId);
+        }, 10000);
+      }
+    }
   }
 
   private getTile(x: number, y: number) {
@@ -486,8 +602,40 @@ export class Match {
       p.ttl -= dt;
       const dx = p.targetX - p.x;
       const dy = p.targetY - p.y;
-      p.x += dx * dt * 5;
-      p.y += dy * dt * 5;
+      
+      // Move projectile
+      const speed = 10; // Faster projectiles
+      const dist = Math.hypot(dx, dy);
+      const move = speed * dt;
+      
+      if (dist <= move || p.ttl <= 0) {
+        // Impact
+        p.x = p.targetX;
+        p.y = p.targetY;
+        p.ttl = 0; // Destroy next frame
+
+        // Deal damage
+        const radius = (p as any).radius || 0.5;
+        const damage = (p as any).damage || 10;
+
+        // Damage units
+        this.units.forEach(u => {
+          if (u.owner !== p.owner && Math.hypot(u.x - p.x, u.y - p.y) <= radius) {
+            u.hp -= damage;
+          }
+        });
+
+        // Damage buildings
+        this.buildings.forEach(b => {
+          if (b.owner !== p.owner && Math.hypot(b.x - p.x, b.y - p.y) <= radius) {
+            b.hp -= damage;
+          }
+        });
+
+      } else {
+        p.x += (dx / dist) * move;
+        p.y += (dy / dist) * move;
+      }
     }
   }
 
