@@ -16,10 +16,18 @@ interface AbilityMessage {
   ability?: string;
 }
 
+interface BuildMessage {
+  type: "build_request";
+  matchId: string;
+  playerId: string;
+  tile: { x: number; y: number };
+  buildingType: string;
+}
+
 export class MatchManager {
   private matches = new Map<string, Match>();
 
-  constructor(private logger: Logger) {}
+  constructor(private logger: Logger) { }
 
   start() {
     setInterval(() => {
@@ -40,6 +48,10 @@ export class MatchManager {
       const match = this.matches.get(message.matchId);
       match?.handleAbility(message.playerId, message.target, message.ability);
     }
+    if (isBuildMessage(message)) {
+      const match = this.matches.get(message.matchId);
+      match?.handleBuild(message.playerId, message.tile.x, message.tile.y, message.buildingType);
+    }
   }
 
   private createMatch(matchId: string) {
@@ -49,16 +61,36 @@ export class MatchManager {
   }
 }
 
-function isJoinMessage(msg: any): msg is JoinMessage {
-  return msg?.type === "join_match" && typeof msg.matchId === "string";
+function isJoinMessage(msg: unknown): msg is JoinMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    (msg as any).type === "join_match" &&
+    typeof (msg as any).matchId === "string"
+  );
 }
 
-function isAbilityMessage(msg: any): msg is AbilityMessage {
+function isAbilityMessage(msg: unknown): msg is AbilityMessage {
   return (
-    msg?.type === "ability_use" &&
-    typeof msg.matchId === "string" &&
-    typeof msg.playerId === "string" &&
-    typeof msg.target?.x === "number" &&
-    typeof msg.target?.y === "number"
+    typeof msg === "object" &&
+    msg !== null &&
+    (msg as any).type === "ability_use" &&
+    typeof (msg as any).matchId === "string" &&
+    typeof (msg as any).playerId === "string" &&
+    typeof (msg as any).target?.x === "number" &&
+    typeof (msg as any).target?.y === "number"
+  );
+}
+
+function isBuildMessage(msg: unknown): msg is BuildMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    (msg as any).type === "build_request" &&
+    typeof (msg as any).matchId === "string" &&
+    typeof (msg as any).playerId === "string" &&
+    typeof (msg as any).tile?.x === "number" &&
+    typeof (msg as any).tile?.y === "number" &&
+    typeof (msg as any).buildingType === "string"
   );
 }

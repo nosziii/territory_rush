@@ -71,6 +71,8 @@ export const useGameStore = defineStore("game", {
     abilityReadyAt: 0,
     targetingAbility: "" as string,
     rallyMode: false,
+    hoveredTile: null as { x: number; y: number } | null,
+    logs: [] as { message: string; category: string; timestamp: number }[],
   }),
   actions: {
     connect(
@@ -91,7 +93,6 @@ export const useGameStore = defineStore("game", {
       };
       this.ws.onmessage = (event) => {
         const message = JSON.parse(event.data);
-        console.info("WS message", message);
         if (message.type === "match_state") {
           this.tick = message.tick;
           this.tiles = message.tiles ?? [];
@@ -100,6 +101,13 @@ export const useGameStore = defineStore("game", {
           this.projectiles = message.projectiles ?? [];
           this.resources = message.resources ?? [];
           this.phase = "running";
+        } else if (message.type === "event_log") {
+          this.logs.unshift({
+            message: message.message,
+            category: message.category,
+            timestamp: message.timestamp
+          });
+          if (this.logs.length > 50) this.logs.pop();
         }
       };
       this.ws.onerror = (err) => {
@@ -133,6 +141,18 @@ export const useGameStore = defineStore("game", {
       this.abilityReadyAt = Date.now() + 5000;
       this.targetingAbility = "";
     },
+    sendBuildRequest(x: number, y: number, type: string) {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      this.ws.send(
+        JSON.stringify({
+          type: "build_request",
+          matchId: this.matchId,
+          playerId: this.playerId,
+          tile: { x, y },
+          buildingType: type,
+        })
+      );
+    },
     abilityReady() {
       return Date.now() >= this.abilityReadyAt;
     },
@@ -141,6 +161,9 @@ export const useGameStore = defineStore("game", {
     },
     toggleRallyMode() {
       this.rallyMode = !this.rallyMode;
+    },
+    setHoveredTile(tile: { x: number; y: number } | null) {
+      this.hoveredTile = tile;
     },
     disconnect() {
       this.ws?.close();

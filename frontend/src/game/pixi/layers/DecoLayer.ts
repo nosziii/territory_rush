@@ -15,11 +15,11 @@ export function drawDeco(
   const size = 32;
   tiles.forEach((tile) => {
     if (tile.type === "water") return;
-    if (Math.random() < 0.8) return; // sparse deco
+    if (Math.random() < 0.95) return; // Very sparse deco (was 0.8)
     const color = decoColor(tile.owner);
     decoLayer!
-      .circle(tile.x * (size + 2) + size / 2, tile.y * (size + 2) + size / 2, 5)
-      .fill(color);
+      .circle(tile.x * (size + 2) + size / 2, tile.y * (size + 2) + size / 2, 3) // Smaller
+      .fill({ color, alpha: 0.3 }); // More transparent
   });
 }
 
