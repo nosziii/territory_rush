@@ -1,4 +1,4 @@
-import { Application, Graphics, Container } from "pixi.js";
+import { Application, Graphics, Container, Texture, Sprite } from "pixi.js";
 import { getTheme, type PlayerColor } from "../theme";
 
 let layer: Container | null = null;
@@ -34,9 +34,6 @@ export function drawTiles(
   });
 
   sortedTiles.forEach((tile) => {
-    const g = new Graphics();
-    layer!.addChild(g);
-
     const height = tile.height || 1;
     const isWater = tile.type === "water";
     const elevation = isWater ? 0 : (height - 1) * 10;
@@ -45,6 +42,72 @@ export function drawTiles(
     const y = tile.y * size - elevation;
 
     const colors = getTileColors(tile.owner, tile.type, theme);
+
+    // Use Sprite for Forest and Mountain
+    if (tile.type === "forest" || tile.type === "mountain") {
+        try {
+            const texture = Texture.from(tile.type);
+            const sprite = new Sprite(texture);
+            sprite.x = x;
+            sprite.y = y;
+            sprite.width = size;
+            sprite.height = size;
+            
+            // Tint the sprite based on owner
+            if (tile.owner) {
+                sprite.tint = colors.main;
+            }
+            
+            layer!.addChild(sprite);
+
+            // Draw depth for elevated sprites
+            if (elevation > 0) {
+                const g = new Graphics();
+                layer!.addChild(g);
+                const depthHeight = 12 + elevation;
+                g.rect(x, y + size, size, depthHeight).fill(colors.dark);
+            }
+        } catch (e) {
+            // Fallback to graphics if texture fails
+            drawProceduralTile(layer!, x, y, size, elevation, isWater, colors, tile);
+        }
+    } else {
+        drawProceduralTile(layer!, x, y, size, elevation, isWater, colors, tile);
+    }
+
+    // Hover Effect (Overlay)
+    if (hoveredTile && hoveredTile.x === tile.x && hoveredTile.y === tile.y) {
+        const g = new Graphics();
+        layer!.addChild(g);
+        g.rect(x, y, size, size).fill({ color: 0xffffff, alpha: 0.2 });
+        g.rect(x, y, size, size).stroke({ color: 0xffffff, width: 2 });
+    }
+  });
+
+  // Build Indicator
+  if (hoveredTile && targetingAbility && targetingAbility.startsWith("build_")) {
+    const tile = tiles.find(t => t.x === hoveredTile.x && t.y === hoveredTile.y);
+    if (tile) {
+      const height = tile.height || 1;
+      const elevation = tile.type === "water" ? 0 : (height - 1) * 10;
+      const x = tile.x * size;
+      const y = tile.y * size - elevation;
+
+      const g = new Graphics();
+      layer!.addChild(g);
+      
+      const isValid = tile.owner === "player" && tile.type !== "water";
+      const color = isValid ? theme.player.main : 0xf87171;
+
+      g.rect(x, y, size, size).fill({ color, alpha: 0.4 });
+      g.rect(x, y, size, size).stroke({ color, width: 3 });
+    }
+  }
+}
+
+function drawProceduralTile(container: Container, x: number, y: number, size: number, elevation: number, isWater: boolean, colors: any, tile: any) {
+    const g = new Graphics();
+    container.addChild(g);
 
     // 1. Draw Side (Depth)
     if (elevation > 0 || !isWater) {
@@ -72,33 +135,6 @@ export function drawTiles(
       const p = tile.capture / 100;
       g.rect(x, y + size - 6, size * p, 6).fill({ color: 0xffffff, alpha: 0.8 });
     }
-
-    // 6. Hover Effect
-    if (hoveredTile && hoveredTile.x === tile.x && hoveredTile.y === tile.y) {
-        g.rect(x, y, size, size).fill({ color: 0xffffff, alpha: 0.2 });
-        g.rect(x, y, size, size).stroke({ color: 0xffffff, width: 2 });
-    }
-  });
-
-  // Build Indicator
-  if (hoveredTile && targetingAbility && targetingAbility.startsWith("build_")) {
-    const tile = tiles.find(t => t.x === hoveredTile.x && t.y === hoveredTile.y);
-    if (tile) {
-      const height = tile.height || 1;
-      const elevation = tile.type === "water" ? 0 : (height - 1) * 10;
-      const x = tile.x * size;
-      const y = tile.y * size - elevation;
-
-      const g = new Graphics();
-      layer!.addChild(g);
-      
-      const isValid = tile.owner === "player" && tile.type !== "water";
-      const color = isValid ? theme.player.main : 0xf87171;
-
-      g.rect(x, y, size, size).fill({ color, alpha: 0.4 });
-      g.rect(x, y, size, size).stroke({ color, width: 3 });
-    }
-  }
 }
 
 function getTileColors(owner: string | null, type: string, theme: any) {

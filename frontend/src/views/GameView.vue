@@ -38,7 +38,10 @@
 
         <!-- Center (Game Canvas) -->
         <main class="flex flex-col min-h-0 relative">
-          <GameCanvas />
+          <div v-if="!assetsLoaded" class="flex-1 flex items-center justify-center text-slate-500 animate-pulse">
+            Loading Assets...
+          </div>
+          <GameCanvas v-else />
         </main>
 
         <!-- Right Sidebar (Abilities & Chat/Log) -->
@@ -100,10 +103,11 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useRouter } from "vue-router";
 import { useGameStore } from "../store/game";
+import { initAssets } from "../game/pixi/assets";
 import GameCanvas from "../components/game/GameCanvas.vue";
 import ResourceBar from "../components/hud/ResourceBar.vue";
 import AbilityBar from "../components/hud/AbilityBar.vue";
@@ -113,16 +117,24 @@ import InfoPanel from "../components/hud/InfoPanel.vue";
 const route = useRoute();
 const router = useRouter();
 const game = useGameStore();
+const assetsLoaded = ref(false);
 
 function leaveMatch() {
   game.disconnect();
   router.push("/");
 }
 
-onMounted(() => {
-  const matchId = route.params.id as string;
-  if (matchId) {
-    game.connect(matchId);
+onMounted(async () => {
+  try {
+    await initAssets();
+    assetsLoaded.value = true;
+    
+    const matchId = route.params.id as string;
+    if (matchId) {
+      game.connect(matchId);
+    }
+  } catch (e) {
+    console.error("Failed to load assets", e);
   }
 });
 </script>
