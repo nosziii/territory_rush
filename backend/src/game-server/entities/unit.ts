@@ -12,5 +12,6 @@ export interface UnitState {
   dmg: number;
   range: number;
   canSail?: boolean;
+  canFly?: boolean;
   speed?: number;
 }

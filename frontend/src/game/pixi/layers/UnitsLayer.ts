@@ -3,6 +3,15 @@ import { Application, Graphics, Container } from "pixi.js";
 
 let layer: Container | null = null;
 
+// Palette (Synced with TilesLayer)
+const PALETTE = {
+  player: 0xf472b6, // Pink 400
+  ai1: 0x4ade80, // Green 400
+  ai2: 0xa78bfa, // Violet 400
+  ai3: 0xfacc15, // Yellow 400
+  neutral: 0x94a3b8,
+};
+
 export function drawUnits(
   app: Application | Container,
   units: { x: number; y: number; owner: string; hp: number; type?: string }[]
@@ -19,75 +28,120 @@ export function drawUnits(
     parent.addChild(layer);
   }
 
-  // Clear previous children
   layer.removeChildren().forEach(c => c.destroy());
 
-  const size = 40;
-  const gap = 2;
-
+  const size = 44; // Synced with tile size
+  
   units.forEach((unit) => {
     const g = new Graphics();
     layer!.addChild(g);
 
-    const color =
-      unit.owner === "player"
-        ? 0xf97316
-        : unit.owner === "ai1"
-          ? 0x06b6d4
-          : unit.owner === "ai2"
-            ? 0x8b5cf6
-            : 0x10b981;
+    const color = getColor(unit.owner);
+    const cx = unit.x * size + size / 2;
+    const cy = unit.y * size + size / 2 - 10; // -10 for elevation offset
 
-    const cx = unit.x * (size + gap) + size / 2;
-    const cy = unit.y * (size + gap) + size / 2;
+    // Shadow blob
+    g.ellipse(cx, cy + 14, 10, 6).fill({ color: 0x000000, alpha: 0.3 });
 
-    // Draw Unit Shape
     if (unit.type === "ship") {
-      // Ship shape (elongated hexagon-ish)
-      g.poly([
-        cx - 10, cy - 4,
-        cx + 6, cy - 4,
-        cx + 12, cy,
-        cx + 6, cy + 4,
-        cx - 10, cy + 4
-      ]).fill(color).stroke({ color: 0xffffff, width: 1 });
-
-      // Sail
-      g.poly([cx - 4, cy - 4, cx + 4, cy - 4, cx, cy - 14]).fill(0xffffff);
-
+      drawShip(g, cx, cy, color);
     } else if (unit.type === "ranged") {
-      // Star/Diamond for ranged
-      g.poly([
-        cx, cy - 10,
-        cx + 8, cy,
-        cx, cy + 10,
-        cx - 8, cy
-      ]).fill(color).stroke({ color: 0xffffff, width: 1 });
-
-      // Inner dot
-      g.circle(cx, cy, 3).fill(0xffffff);
-
+      drawRanged(g, cx, cy, color);
+    } else if (unit.type === "tank") {
+      drawTank(g, cx, cy, color);
+    } else if (unit.type === "mage") {
+      drawMage(g, cx, cy, color);
+    } else if (unit.type === "air") {
+      drawAir(g, cx, cy - 15, color); // Higher up
     } else {
-      // Triangle for melee (default)
-      g.poly([
-        cx, cy - 10,
-        cx + 9, cy + 7,
-        cx - 9, cy + 7
-      ]).fill(color).stroke({ color: 0xffffff, width: 1 });
+      drawMelee(g, cx, cy, color);
     }
 
     // Health Bar
-    const hpPercent = Math.max(0, Math.min(1, unit.hp / 100)); // Assuming max HP 100 for base, scaled for others
-    const barWidth = 24;
-    const barHeight = 4;
-    const barX = cx - barWidth / 2;
-    const barY = cy - 18;
+    const maxHp = getMaxHp(unit.type);
+    const hpPercent = Math.max(0, Math.min(1, unit.hp / maxHp));
+    
+    if (hpPercent < 1) {
+        const barWidth = 24;
+        const barHeight = 4;
+        const barX = cx - barWidth / 2;
+        const barY = cy - 22;
 
-    // Background
-    g.rect(barX, barY, barWidth, barHeight).fill(0x000000);
-    // Health
-    const hpColor = hpPercent > 0.5 ? 0x22c55e : hpPercent > 0.25 ? 0xfacc15 : 0xef4444;
-    g.rect(barX, barY, barWidth * hpPercent, barHeight).fill(hpColor);
+        g.rect(barX, barY, barWidth, barHeight).fill({ color: 0x000000, alpha: 0.5 });
+        const hpColor = hpPercent > 0.5 ? 0x22c55e : hpPercent > 0.25 ? 0xfacc15 : 0xef4444;
+        g.rect(barX, barY, barWidth * hpPercent, barHeight).fill(hpColor);
+    }
   });
+}
+
+function getColor(owner: string) {
+    switch (owner) {
+        case "player": return PALETTE.player;
+        case "ai1": return PALETTE.ai1;
+        case "ai2": return PALETTE.ai2;
+        case "ai3": return PALETTE.ai3;
+        default: return PALETTE.neutral;
+    }
+}
+
+function getMaxHp(type?: string) {
+    switch(type) {
+        case 'tank': return 300;
+        case 'ship': return 200;
+        case 'mage': return 80;
+        case 'air': return 150;
+        case 'ranged': return 80;
+        default: return 100;
+    }
+}
+
+// --- Unit Drawers ---
+
+function drawMelee(g: Graphics, x: number, y: number, color: number) {
+    // Knight-like helmet shape
+    g.rect(x - 6, y - 8, 12, 14).fill(color).stroke({ color: 0xffffff, width: 2 });
+    // Visor
+    g.rect(x - 4, y - 4, 8, 2).fill(0x000000);
+    // Plume
+    g.circle(x, y - 10, 3).fill(0xffffff);
+}
+
+function drawRanged(g: Graphics, x: number, y: number, color: number) {
+    // Hooded figure (Triangle)
+    g.poly([x, y - 12, x + 8, y + 8, x - 8, y + 8]).fill(color).stroke({ color: 0xffffff, width: 2 });
+    // Bow
+    g.arc(x + 4, y, 8, -Math.PI / 2, Math.PI / 2).stroke({ color: 0xffffff, width: 2 });
+}
+
+function drawTank(g: Graphics, x: number, y: number, color: number) {
+    // Body
+    g.rect(x - 10, y - 6, 20, 14).fill(color).stroke({ color: 0xffffff, width: 2 });
+    // Turret
+    g.circle(x, y - 2, 6).fill(0xffffff);
+    // Barrel
+    g.rect(x, y - 4, 12, 4).fill(0xffffff);
+}
+
+function drawMage(g: Graphics, x: number, y: number, color: number) {
+    // Robe
+    g.poly([x, y - 14, x + 6, y + 8, x - 6, y + 8]).fill(color);
+    // Staff
+    g.rect(x + 6, y - 10, 2, 20).fill(0xffffff);
+    // Orb
+    g.circle(x + 7, y - 12, 3).fill(0x60a5fa); // Glowing orb
+}
+
+function drawAir(g: Graphics, x: number, y: number, color: number) {
+    // Plane/Drone shape
+    g.poly([x, y - 8, x + 10, y + 4, x, y, x - 10, y + 4]).fill(color).stroke({ color: 0xffffff, width: 2 });
+    // Propeller blur
+    g.circle(x, y - 8, 8).fill({ color: 0xffffff, alpha: 0.2 });
+}
+
+function drawShip(g: Graphics, x: number, y: number, color: number) {
+    // Hull
+    g.poly([x - 10, y - 2, x + 10, y - 2, x + 6, y + 6, x - 6, y + 6]).fill(color).stroke({ color: 0xffffff, width: 2 });
+    // Sail
+    g.poly([x - 2, y - 4, x + 8, y - 4, x + 2, y - 16]).fill(0xffffff);
 }
 

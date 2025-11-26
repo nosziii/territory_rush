@@ -2,11 +2,12 @@ export type BuildingType =
   | "base"
   | "barracks"
   | "archery"
-  | "factory"
-  | "mage-tower"
+  | "heavy_factory"
+  | "mage_tower"
   | "turret"
   | "mine"
-  | "dock";
+  | "dock"
+  | "airport";
 
 export interface BuildingState {
   id: string;

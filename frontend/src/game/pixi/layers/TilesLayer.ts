@@ -2,33 +2,48 @@ import { Application, Graphics, Container } from "pixi.js";
 
 let layer: Container | null = null;
 
+// Vibrant Palette
+const PALETTE = {
+  water: 0x38bdf8, // Sky 400
+  waterDeep: 0x0ea5e9, // Sky 500
+  neutral: 0x334155, // Slate 700
+  neutralDark: 0x1e293b, // Slate 800
+  player: 0xf472b6, // Pink 400 (Vibrant)
+  playerDark: 0xdb2777, // Pink 600
+  ai1: 0x4ade80, // Green 400
+  ai1Dark: 0x16a34a, // Green 600
+  ai2: 0xa78bfa, // Violet 400
+  ai2Dark: 0x7c3aed, // Violet 600
+  ai3: 0xfacc15, // Yellow 400
+  ai3Dark: 0xca8a04, // Yellow 600
+  resource: 0xfcd34d, // Amber 300
+  defense: 0x94a3b8, // Slate 400
+};
+
 export function drawTiles(
-  app: Application | Container, // Accept Container (world)
+  app: Application | Container,
   tiles: { x: number; y: number; owner: string | null; type: string; capture: number; height?: number }[],
   hoveredTile?: { x: number; y: number } | null,
   targetingAbility?: string
 ) {
   if (!tiles || !Array.isArray(tiles)) return;
 
-  // If app is Application, use stage, otherwise it's the world container
   const parent = app instanceof Application ? app.stage : app;
 
   if (!layer) {
     layer = new Container();
     parent.addChild(layer);
   } else if (layer.parent !== parent) {
-    // Reparent if needed
     layer.parent?.removeChild(layer);
     parent.addChild(layer);
   }
 
-  // Clear previous children to redraw (simple approach for now, optimization would be to reuse graphics)
   layer.removeChildren().forEach(c => c.destroy());
 
-  const size = 40;
-  const gap = 2;
-
-  // Sort tiles by height/y to ensure correct depth rendering order
+  const size = 44; // Slightly larger tiles
+  const gap = 0;   // No gap for seamless look
+  
+  // Sort for depth
   const sortedTiles = [...tiles].sort((a, b) => {
     if (a.y !== b.y) return a.y - b.y;
     return (a.height || 1) - (b.height || 1);
@@ -38,94 +53,84 @@ export function drawTiles(
     const g = new Graphics();
     layer!.addChild(g);
 
-    const h = tile.height && tile.height > 1 ? size + 8 : size;
-    const offset = tile.height && tile.height > 1 ? -8 : 0;
+    const height = tile.height || 1;
+    const isWater = tile.type === "water";
+    const elevation = isWater ? 0 : (height - 1) * 10;
+    
+    const x = tile.x * size;
+    const y = tile.y * size - elevation;
 
-    const x = tile.x * (size + gap);
-    const y = tile.y * (size + gap) + offset;
+    const colors = getColors(tile.owner, tile.type);
 
-    const baseColor = colorForOwner(tile.owner, tile.type);
-
-    // Draw shadow/depth for elevated tiles
-    if (tile.height && tile.height > 1) {
-      g.rect(x, y + size, size, 8).fill(0x0f172a); // Dark side
+    // 1. Draw Side (Depth)
+    if (elevation > 0 || !isWater) {
+        const depthHeight = isWater ? 0 : 12 + elevation;
+        g.rect(x, y + size, size, depthHeight).fill(colors.dark);
     }
 
-    // Main tile face
-    g.rect(x, y, size, size).fill(baseColor);
+    // 2. Draw Top Face
+    g.rect(x, y, size, size).fill(colors.main);
 
-    // Highlight/Bevel effect
-    g.rect(x, y, size, 2).fill({ color: 0xffffff, alpha: 0.3 }); // Top highlight
-    g.rect(x, y, 2, size).fill({ color: 0xffffff, alpha: 0.1 }); // Left highlight
-    g.rect(x, y + size - 2, size, 2).fill({ color: 0x000000, alpha: 0.2 }); // Bottom shadow
-    g.rect(x + size - 2, y, 2, size).fill({ color: 0x000000, alpha: 0.2 }); // Right shadow
+    // 3. Inner Highlight (Bevel)
+    g.rect(x, y, size, 4).fill({ color: 0xffffff, alpha: 0.2 }); // Top edge
+    g.rect(x, y, 4, size).fill({ color: 0xffffff, alpha: 0.1 }); // Left edge
 
-    // Selection/Capture progress overlay
+    // 4. Special Tile Markers
+    if (tile.type === 'resource') {
+        g.circle(x + size/2, y + size/2, 8).fill({ color: 0xffffff, alpha: 0.4 });
+        g.circle(x + size/2, y + size/2, 6).fill({ color: 0xffd700, alpha: 0.8 });
+    } else if (tile.type === 'defense') {
+        g.rect(x + 10, y + 10, size - 20, size - 20).stroke({ color: 0xffffff, width: 2, alpha: 0.5 });
+    }
+
+    // 5. Capture Progress
     if (tile.capture > 0) {
-      g.rect(x, y, size * (tile.capture / 100), size).fill({ color: 0xffffff, alpha: 0.2 });
+      const p = tile.capture / 100;
+      g.rect(x, y + size - 6, size * p, 6).fill({ color: 0xffffff, alpha: 0.8 });
     }
 
-    // Shoreline effect
-    if (tile.type !== "water") {
-      const neighbors = [
-        { dx: 1, dy: 0 },
-        { dx: -1, dy: 0 },
-        { dx: 0, dy: 1 },
-        { dx: 0, dy: -1 },
-      ];
-      neighbors.forEach((n) => {
-        const water = tiles.find((t) => t.x === tile.x + n.dx && t.y === tile.y + n.dy && t.type === "water");
-        if (water) {
-          // Add a subtle wave/foam effect on the edge
-          const edgeX = x + (n.dx === 1 ? size : 0);
-          const edgeY = y + (n.dy === 1 ? size : 0);
-
-          if (n.dx !== 0) {
-            g.rect(n.dx === 1 ? edgeX - 4 : edgeX, y, 4, size).fill({ color: 0xffffff, alpha: 0.3 });
-          } else {
-            g.rect(x, n.dy === 1 ? edgeY - 4 : edgeY, size, 4).fill({ color: 0xffffff, alpha: 0.3 });
-          }
-        }
-      });
+    // 6. Hover Effect
+    if (hoveredTile && hoveredTile.x === tile.x && hoveredTile.y === tile.y) {
+        g.rect(x, y, size, size).fill({ color: 0xffffff, alpha: 0.2 });
+        g.rect(x, y, size, size).stroke({ color: 0xffffff, width: 2 });
     }
   });
 
-  // Draw Build Indicator Overlay
+  // Build Indicator
   if (hoveredTile && targetingAbility && targetingAbility.startsWith("build_")) {
     const tile = tiles.find(t => t.x === hoveredTile.x && t.y === hoveredTile.y);
     if (tile) {
-      const size = 40;
-      const gap = 2;
-      const offset = tile.height && tile.height > 1 ? -8 : 0;
-      const x = tile.x * (size + gap);
-      const y = tile.y * (size + gap) + offset;
+      const height = tile.height || 1;
+      const elevation = tile.type === "water" ? 0 : (height - 1) * 10;
+      const x = tile.x * size;
+      const y = tile.y * size - elevation;
 
       const g = new Graphics();
       layer!.addChild(g);
-
-      // Validation Logic (Client-side prediction)
-      const isValid = tile.owner === "player" && tile.type !== "water"; // Simplified check
-      const color = isValid ? 0x22c55e : 0xef4444;
+      
+      const isValid = tile.owner === "player" && tile.type !== "water";
+      const color = isValid ? 0x4ade80 : 0xf87171;
 
       g.rect(x, y, size, size).fill({ color, alpha: 0.4 });
-      g.rect(x, y, size, size).stroke({ color, width: 2 });
+      g.rect(x, y, size, size).stroke({ color, width: 3 });
     }
   }
 }
 
-function colorForOwner(owner: string | null, type: string) {
-  if (type === "water") return 0x0ea5e9; // Sky blue
-  if (type === "resource") return 0xfcd34d; // Goldish for resource
-  if (type === "defense") return 0x94a3b8; // Slate for defense
+function getColors(owner: string | null, type: string) {
+  if (type === "water") return { main: PALETTE.water, dark: PALETTE.waterDeep };
+  
+  if (!owner) {
+      if (type === "resource") return { main: 0x475569, dark: 0x334155 };
+      return { main: PALETTE.neutral, dark: PALETTE.neutralDark };
+  }
 
-  if (!owner) return 0x1e293b; // Slate-800 for neutral
-
-  // Player colors (Neon/Vibrant)
-  if (owner === "player") return 0xf97316; // Orange
-  if (owner === "ai1") return 0x06b6d4; // Cyan
-  if (owner === "ai2") return 0x8b5cf6; // Violet
-  if (owner === "ai3") return 0x10b981; // Emerald
-
-  return 0x334155;
+  switch (owner) {
+    case "player": return { main: PALETTE.player, dark: PALETTE.playerDark };
+    case "ai1": return { main: PALETTE.ai1, dark: PALETTE.ai1Dark };
+    case "ai2": return { main: PALETTE.ai2, dark: PALETTE.ai2Dark };
+    case "ai3": return { main: PALETTE.ai3, dark: PALETTE.ai3Dark };
+    default: return { main: PALETTE.neutral, dark: PALETTE.neutralDark };
+  }
 }
 

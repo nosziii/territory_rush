@@ -1,7 +1,7 @@
 import { WebSocket } from "ws";
 import { Logger } from "../types.js";
 import { TileState, TileType } from "./entities/tile.js";
-import { UnitState } from "./entities/unit.js";
+import { UnitState, UnitType } from "./entities/unit.js";
 import { BuildingState } from "./entities/building.js";
 import { v4 as uuid } from "uuid";
 
@@ -88,6 +88,9 @@ export class Match {
     switch (type) {
       case "barracks": return 150;
       case "archery": return 200;
+      case "heavy_factory": return 300;
+      case "mage_tower": return 350;
+      case "airport": return 400;
       case "turret": return 250;
       case "mine": return 100;
       default: return 9999;
@@ -98,10 +101,9 @@ export class Match {
     const owned = this.tiles.find(
       (t) => t.owner === playerId && Math.abs(t.x - target.x) + Math.abs(t.y - target.y) <= 2
     );
-    if (!owned && ability !== "artillery") return; // Artillery can target anywhere
+    if (!owned && ability !== "artillery") return;
 
     if (ability === "reinforce") {
-      // Spawn a squad
       for (let i = 0; i < 4; i++) {
         this.units.push({
           id: uuid(),
@@ -114,7 +116,7 @@ export class Match {
           targetY: target.y,
           dmg: 20,
           range: 1,
-          speed: 1.5, // Slower units
+          speed: 1.5,
         });
       }
       this.logEvent(`Reinforcements deployed at ${owned!.x},${owned!.y}`, "combat");
@@ -128,7 +130,6 @@ export class Match {
         targetY: target.y,
         ttl: 0.6,
       });
-      // Delayed damage logic would be better, but instant for MVP
       const radius = 3;
       this.units.forEach((u) => {
         const dist = Math.hypot(u.x - target.x, u.y - target.y);
@@ -183,7 +184,6 @@ export class Match {
   private createDemoTiles(): TileState[] {
     const size = this.MAP_SIZE;
     const tiles: TileState[] = [];
-    // Simple Perlin-ish noise or just random clusters for terrain
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const type = this.pickTileType(x, y, size);
@@ -202,15 +202,11 @@ export class Match {
   }
 
   private pickTileType(x: number, y: number, size: number): TileType {
-    // More organic map generation
     const dx = x - size / 2;
     const dy = y - size / 2;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    // Island shape (Larger island, almost filling map)
-    if (dist > size / 2 - 1) return "water"; // Only 1 tile border of water
-
-    // Random lakes (Reduced chance)
+    if (dist > size / 2 - 1) return "water";
     if (Math.random() > 0.98) return "water";
 
     if ((x + y) % 13 === 0) return "defense";
@@ -219,7 +215,6 @@ export class Match {
   }
 
   private randomHeight(x: number, y: number) {
-    // Hills in center
     const dist = Math.hypot(x - 16, y - 16);
     if (dist < 8 && Math.random() > 0.6) return 2;
     return 1;
@@ -237,11 +232,8 @@ export class Match {
       level: 1,
     };
     this.buildings.push(base);
-
-    // Initial resources
     this.resources.set(playerId, 400);
 
-    // Initial territory
     const radius = 2;
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
@@ -279,31 +271,48 @@ export class Match {
       const current = this.spawnCooldown.get(key) ?? 0;
       const next = current - dt;
 
-      // Slower spawn rates for strategic feel
       let cooldown = 5.0;
-      let unitType: UnitState["type"] = "melee";
+      let unitType: UnitType = "melee";
 
       if (b.type === "barracks") { cooldown = 4.0; unitType = "melee"; }
       else if (b.type === "archery") { cooldown = 6.0; unitType = "ranged"; }
-      else if (b.type === "base") { cooldown = 8.0; unitType = "melee"; }
+      else if (b.type === "heavy_factory") { cooldown = 12.0; unitType = "tank"; }
+      else if (b.type === "mage_tower") { cooldown = 10.0; unitType = "mage"; }
+      else if (b.type === "airport") { cooldown = 15.0; unitType = "air"; }
+      else if (b.type === "base") { cooldown = 8.0; unitType = "melee"; } // Base spawns basic units
       else if (b.type === "dock") { cooldown = 10.0; unitType = "ship"; }
-      else { continue; } // Mines/Turrets don't spawn
+      else { continue; }
 
       if (next <= 0) {
         const target = this.pickBaseTarget(b.owner);
+        
+        let hp = 100;
+        let dmg = 20;
+        let range = 1;
+        let speed = 1.5;
+        let canSail = false;
+        let canFly = false;
+
+        if (unitType === "tank") { hp = 300; dmg = 40; speed = 0.8; }
+        else if (unitType === "mage") { hp = 80; dmg = 60; range = 3; speed = 1.2; }
+        else if (unitType === "ranged") { hp = 80; dmg = 30; range = 3; speed = 1.2; }
+        else if (unitType === "ship") { hp = 200; dmg = 30; range = 2; speed = 2.0; canSail = true; }
+        else if (unitType === "air") { hp = 150; dmg = 35; range = 2; speed = 2.5; canFly = true; }
+
         this.units.push({
           id: uuid(),
           owner: b.owner,
           type: unitType,
           x: b.x,
           y: b.y,
-          hp: unitType === "ship" ? 200 : 100,
+          hp,
           targetX: target.x,
           targetY: target.y,
-          dmg: unitType === "ranged" ? 30 : 20,
-          range: unitType === "ranged" ? 3 : 1,
-          canSail: unitType === "ship",
-          speed: unitType === "ship" ? 2.0 : 1.2, // Slower movement
+          dmg,
+          range,
+          canSail,
+          canFly, // Add type definition for canFly in UnitState if missing
+          speed,
         });
         this.spawnCooldown.set(key, cooldown);
       } else {
@@ -313,15 +322,12 @@ export class Match {
   }
 
   private pickBaseTarget(owner: string) {
-    // AI Logic: Attack nearest enemy building or expand to neutral
     const enemies = this.buildings.filter((b) => b.owner !== owner);
     if (enemies.length > 0 && Math.random() > 0.3) {
-      // Attack random enemy
       const choice = enemies[Math.floor(Math.random() * enemies.length)];
       return { x: choice.x, y: choice.y };
     }
-    // Expand
-    return { x: this.MAP_SIZE / 2, y: this.MAP_SIZE / 2 }; // Go to center if nothing else
+    return { x: this.MAP_SIZE / 2, y: this.MAP_SIZE / 2 };
   }
 
   private movementSystem(dt: number) {
@@ -329,9 +335,8 @@ export class Match {
       const dx = unit.targetX - unit.x;
       const dy = unit.targetY - unit.y;
 
-      // If at target, pick new one
       if (Math.abs(dx) + Math.abs(dy) < 0.5) {
-        const target = this.pickNewTarget(unit.owner, unit.x, unit.y);
+        const target = this.pickNewTarget(unit.owner, unit.x, unit.y, (unit as any).canSail, (unit as any).canFly);
         unit.targetX = target.x;
         unit.targetY = target.y;
         continue;
@@ -340,50 +345,42 @@ export class Match {
       const step = (unit.speed ?? 1.5) * dt;
       const next = this.nextStepToward(unit, { x: unit.targetX, y: unit.targetY });
 
-      // Separation Force: Push away from nearby units
       let sepX = 0;
       let sepY = 0;
       for (const other of this.units) {
         if (other === unit) continue;
         const distSq = (unit.x - other.x) ** 2 + (unit.y - other.y) ** 2;
-        if (distSq < 0.25) { // Too close (0.5 radius)
+        if (distSq < 0.25) {
           const dist = Math.sqrt(distSq) || 0.01;
-          const push = (0.5 - dist) / dist; // Stronger as they get closer
+          const push = (0.5 - dist) / dist;
           sepX += (unit.x - other.x) * push;
           sepY += (unit.y - other.y) * push;
         }
       }
 
-      // Apply movement + separation
       const tx = next.x;
       const ty = next.y;
       const moveX = tx - unit.x;
       const moveY = ty - unit.y;
       const dist = Math.sqrt(moveX * moveX + moveY * moveY) || 1;
 
-      // Normalize move vector
       const dirX = moveX / dist;
       const dirY = moveY / dist;
 
-      // Combine (80% goal, 20% separation)
       const finalX = dirX + sepX * 2.0;
       const finalY = dirY + sepY * 2.0;
 
-      // Normalize final vector
       const finalDist = Math.sqrt(finalX * finalX + finalY * finalY) || 1;
 
       unit.x += (finalX / finalDist) * step;
       unit.y += (finalY / finalDist) * step;
 
-      // Clamp to map
       unit.x = Math.max(0, Math.min(this.MAP_SIZE - 0.1, unit.x));
       unit.y = Math.max(0, Math.min(this.MAP_SIZE - 0.1, unit.y));
     }
   }
 
-  private pickNewTarget(owner: string, x: number, y: number) {
-    // Simple AI: Find nearest unowned or enemy tile
-    // Optimization: Don't scan whole map, just local area
+  private pickNewTarget(owner: string, x: number, y: number, canSail = false, canFly = false) {
     const range = 8;
     let best = { x, y };
     let minScore = 9999;
@@ -393,11 +390,14 @@ export class Match {
         const tx = Math.round(x + dx);
         const ty = Math.round(y + dy);
         const t = this.getTile(tx, ty);
-        if (!t || t.type === "water") continue;
+        
+        if (!t) continue;
+        if (t.type === "water" && !canSail && !canFly) continue;
+        if (t.type !== "water" && canSail && !canFly) continue; // Ships stuck on land
 
         let score = Math.abs(dx) + Math.abs(dy);
-        if (t.owner !== owner) score -= 5; // Prefer expanding/attacking
-        if (t.owner && t.owner !== owner) score -= 10; // Prefer attacking enemy
+        if (t.owner !== owner) score -= 5;
+        if (t.owner && t.owner !== owner) score -= 10;
 
         if (score < minScore) {
           minScore = score;
@@ -409,7 +409,6 @@ export class Match {
   }
 
   private findNearestWalkable(unit: UnitState) {
-    // Fallback if stuck
     return { x: unit.x, y: unit.y };
   }
 
@@ -425,12 +424,17 @@ export class Match {
       const owners = new Set(bucket.map((u) => u.owner));
       if (owners.size <= 1) continue;
 
-      // Combat logic: units damage each other
       for (const unit of bucket) {
-        // Find enemy in same tile
         const enemy = bucket.find(u => u.owner !== unit.owner);
         if (enemy) {
-          enemy.hp -= (unit.dmg ?? 10) * 0.1; // DPS
+          let dmg = (unit.dmg ?? 10) * 0.1;
+          
+          // Mage Area Damage (Splash)
+          if (unit.type === 'mage') {
+             bucket.filter(u => u.owner !== unit.owner).forEach(u => u.hp -= dmg * 0.5);
+          } else {
+             enemy.hp -= dmg;
+          }
         }
       }
     }
@@ -439,11 +443,13 @@ export class Match {
   private captureSystem(dt: number) {
     const ownershipDelta = new Map<string, number>();
     for (const unit of this.units) {
+      if ((unit as any).canFly || (unit as any).canSail) continue; // Air/Ships don't capture tiles? Or maybe they do. Let's say only ground units capture.
+      
       const tile = this.getTile(Math.round(unit.x), Math.round(unit.y));
-      if (!tile) continue;
+      if (!tile || tile.type === 'water') continue;
+
       const key = `${tile.x}-${tile.y}`;
       const delta = ownershipDelta.get(key) ?? 0;
-      // Capture slower
       ownershipDelta.set(key, delta + (unit.owner === tile.owner ? 0 : 2 * dt));
     }
     for (const [key, delta] of ownershipDelta) {
@@ -451,7 +457,7 @@ export class Match {
       const tile = this.getTile(Number(xStr), Number(yStr));
       if (!tile) continue;
       tile.capture += delta;
-      if (tile.capture >= 100) { // Harder to capture
+      if (tile.capture >= 100) {
         tile.owner = this.dominantOwnerAtTile(tile.x, tile.y);
         tile.capture = 0;
       }
@@ -463,7 +469,7 @@ export class Match {
       (u) => Math.round(u.x) === x && Math.round(u.y) === y
     );
     if (units.length === 0) return null;
-    return units[0].owner; // Simplified
+    return units[0].owner;
   }
 
   private cleanupUnits() {
@@ -486,9 +492,8 @@ export class Match {
   }
 
   private resourceTick(dt: number) {
-    const gain = 50 * dt; // Increased from 10 to 50
+    const gain = 50 * dt;
     for (const b of this.buildings) {
-      // Mines give extra
       const bonus = b.type === "mine" ? 30 * dt : 0;
       this.resources.set(b.owner, (this.resources.get(b.owner) ?? 0) + gain + bonus);
     }
@@ -511,7 +516,6 @@ export class Match {
   }
 
   private nextStepToward(unit: UnitState, target: Target) {
-    // Simplified pathfinding for open map
     return target;
   }
 }
